@@ -95,42 +95,52 @@ jobs:
             const sanitized = branchName.replace(/[^a-zA-Z0-9-]/g, '-').toLowerCase();
             const previewUrl = `https://${{ github.repository_owner }}.github.io/TheUrdfEditor/branches/${sanitized}/`;
             
-            // Find open PRs for this branch
-            const { data: pulls } = await github.rest.pulls.list({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              head: `${context.repo.owner}:${branchName}`,
-              state: 'open'
-            });
-            
-            for (const pr of pulls) {
-              // Check if we already commented
-              const { data: comments } = await github.rest.issues.listComments({
+            try {
+              // Find open PRs for this branch
+              const { data: pulls } = await github.rest.pulls.list({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
-                issue_number: pr.number
+                head: `${context.repo.owner}:${branchName}`,
+                state: 'open'
               });
               
-              const botComment = comments.find(comment => 
-                comment.user.type === 'Bot' && 
-                comment.body.includes('Preview deployment')
-              );
-              
-              const body = `## 🚀 Preview deployment ready!\n\nYour changes are deployed at: ${previewUrl}\n\nThis preview will be automatically deleted when the branch is merged or deleted.`;
-              
-              if (botComment) {
-                await github.rest.issues.updateComment({
-                  owner: context.repo.owner,
-                  repo: context.repo.repo,
-                  comment_id: botComment.id,
-                  body: body
-                });
-              } else {
-                await github.rest.issues.createComment({
-                  owner: context.repo.owner,
-                  repo: context.repo.repo,
-                  issue_number: pr.number,
-                  body: body
-                });
+              if (pulls.length === 0) {
+                console.log('No open PRs found for this branch');
+                return;
               }
+              
+              for (const pr of pulls) {
+                // Check if we already commented
+                const { data: comments } = await github.rest.issues.listComments({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: pr.number
+                });
+                
+                const botComment = comments.find(comment => 
+                  comment.user.type === 'Bot' && 
+                  comment.body.includes('Preview deployment')
+                );
+                
+                const body = `## 🚀 Preview deployment ready!\n\nYour changes are deployed at: ${previewUrl}\n\nThis preview will be automatically deleted when the branch is merged or deleted.`;
+                
+                if (botComment) {
+                  await github.rest.issues.updateComment({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    comment_id: botComment.id,
+                    body: body
+                  });
+                } else {
+                  await github.rest.issues.createComment({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    issue_number: pr.number,
+                    body: body
+                  });
+                }
+              }
+            } catch (error) {
+              console.log('Error posting PR comment:', error.message);
+              // Don't fail the workflow if commenting fails
             }
