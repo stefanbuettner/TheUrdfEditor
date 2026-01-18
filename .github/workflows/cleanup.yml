@@ -1,0 +1,53 @@
+name: Cleanup Branch Deployment
+
+on:
+  delete:
+    branches:
+      - '**'
+  pull_request:
+    types: [closed]
+
+permissions:
+  contents: write
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'delete' || (github.event_name == 'pull_request' && github.event.pull_request.merged == true)
+    steps:
+      - name: Checkout gh-pages branch
+        uses: actions/checkout@v4
+        with:
+          ref: gh-pages
+          fetch-depth: 0
+      
+      - name: Determine branch to clean
+        id: branch-info
+        run: |
+          if [ "${{ github.event_name }}" = "delete" ]; then
+            BRANCH_NAME="${{ github.event.ref }}"
+          else
+            BRANCH_NAME="${{ github.event.pull_request.head.ref }}"
+          fi
+          
+          # Sanitize branch name
+          SANITIZED=$(echo "$BRANCH_NAME" | sed 's/[^a-zA-Z0-9-]/-/g' | tr '[:upper:]' '[:lower:]')
+          echo "sanitized=$SANITIZED" >> $GITHUB_OUTPUT
+          echo "branch=$BRANCH_NAME" >> $GITHUB_OUTPUT
+      
+      - name: Remove branch deployment
+        run: |
+          BRANCH_PATH="branches/${{ steps.branch-info.outputs.sanitized }}"
+          
+          if [ -d "$BRANCH_PATH" ]; then
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            
+            git rm -rf "$BRANCH_PATH"
+            git commit -m "Remove deployment for branch ${{ steps.branch-info.outputs.branch }}"
+            git push origin gh-pages
+            
+            echo "✅ Removed deployment at $BRANCH_PATH"
+          else
+            echo "ℹ️ No deployment found at $BRANCH_PATH"
+          fi

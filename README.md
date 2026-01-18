@@ -52,7 +52,36 @@ npm run build
 
 ## Deployment
 
-The application is automatically deployed to GitHub Pages when changes are pushed to the `main` branch. The deployment workflow is configured in `.github/workflows/deploy.yml`.
+The application uses an advanced GitHub Pages deployment strategy that supports both production and preview deployments:
+
+### Production Deployment
+
+- **Main branch**: Automatically deployed to the root path at `https://stefanbuettner.github.io/TheUrdfEditor/`
+- Triggered on every push to the `main` branch
+- Serves as the stable production version
+
+### Branch Preview Deployments
+
+- **All feature branches**: Automatically deployed to dedicated subfolders
+- Each branch gets its own preview URL: `https://stefanbuettner.github.io/TheUrdfEditor/branches/{branch-name}/`
+- Perfect for reviewing features without building locally
+- Preview URLs are automatically posted as comments on pull requests
+
+### Automatic Cleanup
+
+- When a branch is **deleted** or a pull request is **merged**, the corresponding preview deployment is automatically removed
+- Keeps the Pages site clean and organized
+
+### Manual Deployment
+
+You can also trigger deployments manually using the GitHub Actions "workflow_dispatch" event from the Actions tab.
+
+### How It Works
+
+1. The `.github/workflows/deploy.yml` workflow builds and deploys all branches
+2. Main branch deploys to the root, other branches deploy to `branches/{sanitized-branch-name}/`
+3. The `.github/workflows/cleanup.yml` workflow removes branch deployments when branches are deleted or merged
+4. The Vite base path is dynamically configured during the build process
 
 ## Technologies
 
