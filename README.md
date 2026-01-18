@@ -65,7 +65,7 @@ The application uses an advanced GitHub Pages deployment strategy that supports 
 - **All feature branches**: Automatically deployed to dedicated subfolders
 - Each branch gets its own preview URL: `https://stefanbuettner.github.io/TheUrdfEditor/branches/{branch-name}/`
 - Perfect for reviewing features without building locally
-- Preview URLs are automatically posted as comments on pull requests
+- Check the Actions tab to find the preview URL for your branch in the workflow logs
 
 ### Automatic Cleanup
 
