@@ -84,7 +84,7 @@ jobs:
           keep_files: true  # Keep other branch deployments
           user_name: 'github-actions[bot]'
           user_email: 'github-actions[bot]@users.noreply.github.com'
-          commit_message: 'Deploy ${{ github.ref_name }} to ${{ steps.deploy-path.outputs.path || "root" }}'
+          commit_message: 'Deploy ${{ github.ref_name }}'
       
       - name: Comment on PR with preview URL
         if: steps.deploy-path.outputs.is_main == 'false' && github.event_name == 'push'
