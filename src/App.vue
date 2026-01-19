@@ -10,6 +10,7 @@ const urdfRoot = ref<URDFNode | null>(null)
 const showUploadMenu = ref(false)
 const showUrlDialog = ref(false)
 const urlInput = ref('')
+const threeViewerRef = ref<InstanceType<typeof ThreeViewer> | null>(null)
 
 const handleNodeSelect = (node: URDFNode) => {
   selectedNode.value = node
@@ -69,15 +70,21 @@ const loadFromUrl = async () => {
       throw new Error(`HTTP error! status: ${response.status}`)
     }
     const content = await response.text()
-    // Parse URDF content and create node structure
-    // This will be implemented in ThreeViewer
-    const fileData = { name: 'loaded_from_url.urdf', content }
-    // TODO: Process the URDF content
-    console.log('Loaded URDF from URL:', fileData)
+    
+    // Extract filename from URL
+    const urlParts = urlInput.value.split('/')
+    const filename = urlParts[urlParts.length - 1] || 'loaded_from_url.urdf'
+    
+    // Load URDF content
+    if (threeViewerRef.value) {
+      threeViewerRef.value.loadURDFContent(content, filename)
+    }
+    
+    showUrlDialog.value = false
+    urlInput.value = ''
   } catch (error) {
     console.error('Error loading URDF from URL:', error)
     alert(`Failed to load URDF from URL: ${error}`)
-  } finally {
     showUrlDialog.value = false
     urlInput.value = ''
   }
@@ -90,10 +97,14 @@ const handleUpload = (event: Event) => {
     const reader = new FileReader()
     reader.onload = (e) => {
       const content = e.target?.result as string
-      // Parse URDF content and create node structure
-      // This will be implemented in ThreeViewer
-      const fileData = { name: file.name, content }
-      // Emit to ThreeViewer through a ref or event
+      if (threeViewerRef.value) {
+        try {
+          threeViewerRef.value.loadURDFContent(content, file.name)
+        } catch (error) {
+          console.error('Error loading URDF:', error)
+          alert(`Failed to load URDF: ${error}`)
+        }
+      }
     }
     reader.readAsText(file)
   }
@@ -188,6 +199,7 @@ const generateNodeXML = (node: URDFNode, indent: number): string => {
       />
       
       <ThreeViewer
+        ref="threeViewerRef"
         class="main-viewer"
         @urdf-loaded="handleUrdfLoad"
       />

@@ -141,6 +141,99 @@ const loadSampleRobot = () => {
   emit('urdf-loaded', robotNode)
 }
 
+const loadURDFContent = (content: string, filename: string) => {
+  // Parse URDF XML and create node structure
+  const parser = new DOMParser()
+  const xmlDoc = parser.parseFromString(content, 'text/xml')
+  
+  // Check for parsing errors
+  const parserError = xmlDoc.querySelector('parsererror')
+  if (parserError) {
+    console.error('XML parsing error:', parserError.textContent)
+    throw new Error('Invalid URDF XML format')
+  }
+  
+  const robotElement = xmlDoc.querySelector('robot')
+  if (!robotElement) {
+    throw new Error('No robot element found in URDF')
+  }
+  
+  const robotName = robotElement.getAttribute('name') || 'unnamed_robot'
+  
+  // Build node structure from URDF
+  const robotNode: URDFNode = {
+    name: robotName,
+    type: 'robot',
+    children: [],
+    properties: {}
+  }
+  
+  // Parse links
+  const links = robotElement.querySelectorAll('link')
+  links.forEach(link => {
+    const linkName = link.getAttribute('name') || 'unnamed_link'
+    const linkNode: URDFNode = {
+      name: linkName,
+      type: 'link',
+      children: [],
+      properties: {}
+    }
+    
+    // Parse visual elements
+    const visual = link.querySelector('visual > origin')
+    if (visual) {
+      const xyz = visual.getAttribute('xyz')?.split(' ').map(Number) || [0, 0, 0]
+      const rpy = visual.getAttribute('rpy')?.split(' ').map(Number) || [0, 0, 0]
+      linkNode.properties = { position: xyz, rotation: rpy }
+    }
+    
+    robotNode.children.push(linkNode)
+  })
+  
+  // Parse joints
+  const joints = robotElement.querySelectorAll('joint')
+  joints.forEach(joint => {
+    const jointName = joint.getAttribute('name') || 'unnamed_joint'
+    const jointType = joint.getAttribute('type') || 'fixed'
+    const jointNode: URDFNode = {
+      name: jointName,
+      type: 'joint',
+      children: [],
+      properties: { type: jointType }
+    }
+    
+    // Parse axis
+    const axis = joint.querySelector('axis')
+    if (axis && jointNode.properties) {
+      const axisXyz = axis.getAttribute('xyz')?.split(' ').map(Number) || [0, 0, 1]
+      jointNode.properties.axis = axisXyz
+    }
+    
+    robotNode.children.push(jointNode)
+  })
+  
+  // Clear existing robot from scene
+  if (robot) {
+    scene.remove(robot)
+    robot = null
+  }
+  
+  // For now, create a simple visual representation
+  // In the future, use urdf-loader to load the actual 3D model
+  const baseGeometry = new THREE.BoxGeometry(0.5, 0.5, 0.5)
+  const baseMaterial = new THREE.MeshPhongMaterial({ color: 0xff0000 })
+  const baseMesh = new THREE.Mesh(baseGeometry, baseMaterial)
+  scene.add(baseMesh)
+  
+  // Emit the loaded robot structure
+  emit('urdf-loaded', robotNode)
+}
+
+// Expose loadURDFContent to parent component
+defineExpose({
+  loadURDFContent
+})
+
 const cleanup = () => {
   if (animationId) {
     cancelAnimationFrame(animationId)

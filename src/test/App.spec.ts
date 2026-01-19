@@ -275,6 +275,154 @@ describe('App.vue - URDF Upload/Download', () => {
       expect(compareXml(generated, expected)).toBe(true)
     })
   })
+
+  describe('URL Loading', () => {
+    it('should load URDF from URL successfully', async () => {
+      // Mock fetch API
+      const mockUrdfContent = `<?xml version="1.0"?>
+<robot name="url_robot">
+  <link name="base_link">
+  </link>
+</robot>`
+
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        text: async () => mockUrdfContent
+      } as Response)
+
+      // Mock the ThreeViewer ref
+      const mockLoadURDFContent = vi.fn()
+      wrapper.vm.threeViewerRef = {
+        loadURDFContent: mockLoadURDFContent
+      }
+
+      // Set URL and load
+      wrapper.vm.urlInput = 'https://example.com/robot.urdf'
+      await wrapper.vm.loadFromUrl()
+      await nextTick()
+
+      // Verify fetch was called with correct URL
+      expect(global.fetch).toHaveBeenCalledWith('https://example.com/robot.urdf')
+      
+      // Verify loadURDFContent was called with the content
+      expect(mockLoadURDFContent).toHaveBeenCalledWith(mockUrdfContent, 'robot.urdf')
+    })
+
+    it('should handle fetch errors gracefully', async () => {
+      // Mock fetch to fail
+      global.fetch = vi.fn().mockRejectedValue(new Error('Network error'))
+
+      // Reset alert mock
+      vi.mocked(global.alert).mockClear()
+
+      // Set URL
+      wrapper.vm.showUrlDialog = true
+      wrapper.vm.urlInput = 'https://example.com/invalid.urdf'
+      await nextTick()
+
+      // Trigger load from URL
+      await wrapper.vm.loadFromUrl()
+      await nextTick()
+
+      // Verify error was handled
+      expect(global.alert).toHaveBeenCalledWith(expect.stringContaining('Failed to load URDF from URL'))
+      expect(wrapper.vm.showUrlDialog).toBe(false)
+    })
+
+    it('should handle HTTP errors (404, 500, etc)', async () => {
+      // Mock fetch to return error status
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: false,
+        status: 404,
+        text: async () => 'Not Found'
+      } as Response)
+
+      // Reset alert mock
+      vi.mocked(global.alert).mockClear()
+
+      // Set URL
+      wrapper.vm.showUrlDialog = true
+      wrapper.vm.urlInput = 'https://example.com/notfound.urdf'
+      await nextTick()
+
+      // Trigger load from URL
+      await wrapper.vm.loadFromUrl()
+      await nextTick()
+
+      // Verify error was handled
+      expect(global.alert).toHaveBeenCalledWith(expect.stringContaining('Failed to load URDF from URL'))
+    })
+
+    it('should load red box URDF fixture', async () => {
+      const fs = await import('fs/promises')
+      const path = await import('path')
+      
+      const redBoxPath = path.join(__dirname, 'fixtures', 'red_box.urdf')
+      const redBoxContent = await fs.readFile(redBoxPath, 'utf-8')
+
+      // Mock fetch to return red box URDF
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        text: async () => redBoxContent
+      } as Response)
+
+      // Mock the ThreeViewer ref
+      const mockLoadURDFContent = vi.fn()
+      wrapper.vm.threeViewerRef = {
+        loadURDFContent: mockLoadURDFContent
+      }
+
+      // Set URL and load
+      wrapper.vm.urlInput = 'https://example.com/red_box.urdf'
+      await wrapper.vm.loadFromUrl()
+      await nextTick()
+
+      // Verify content was loaded
+      expect(mockLoadURDFContent).toHaveBeenCalledWith(redBoxContent, 'red_box.urdf')
+      
+      // Verify red box properties
+      expect(redBoxContent).toContain('red_box_robot')
+      expect(redBoxContent).toContain('xyz="0.5 1.0 0.0"')
+      expect(redBoxContent).toContain('rpy="0.0 0.0 0.785398"')
+      expect(redBoxContent).toContain('box size="1.0 0.5 0.25"')
+    })
+
+    it('should load sample URDF from openrr repository', async () => {
+      const fs = await import('fs/promises')
+      const path = await import('path')
+      
+      const samplePath = path.join(__dirname, 'fixtures', 'sample_from_openrr.urdf')
+      const sampleContent = await fs.readFile(samplePath, 'utf-8')
+
+      // Mock fetch to return sample URDF
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        text: async () => sampleContent
+      } as Response)
+
+      // Mock the ThreeViewer ref
+      const mockLoadURDFContent = vi.fn()
+      wrapper.vm.threeViewerRef = {
+        loadURDFContent: mockLoadURDFContent
+      }
+
+      // Set URL and load
+      wrapper.vm.urlInput = 'https://raw.githubusercontent.com/openrr/urdf-viz/refs/heads/main/sample.urdf'
+      await wrapper.vm.loadFromUrl()
+      await nextTick()
+
+      // Verify content was loaded
+      expect(mockLoadURDFContent).toHaveBeenCalledWith(sampleContent, 'sample.urdf')
+      
+      // Verify sample URDF properties
+      expect(sampleContent).toContain('<robot name="robot">')
+      expect(sampleContent).toContain('link name="root"')
+      expect(sampleContent).toContain('link name="l_shoulder1"')
+    })
+  })
 })
 
 /**

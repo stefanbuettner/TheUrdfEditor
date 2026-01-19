@@ -5,6 +5,13 @@ import { vi } from 'vitest'
 (global as any).URL.createObjectURL = vi.fn(() => 'mock-url');
 (global as any).URL.revokeObjectURL = vi.fn()
 
+// Mock alert (create if doesn't exist)
+if (typeof global.alert === 'undefined') {
+  (global as any).alert = vi.fn()
+} else {
+  global.alert = vi.fn() as any
+}
+
 // Mock FileReader for upload tests
 class MockFileReader {
   result: string | ArrayBuffer | null = null
