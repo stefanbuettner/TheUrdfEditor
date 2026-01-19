@@ -82,7 +82,7 @@ describe('App.vue - URDF Upload/Download', () => {
     })
 
     it('should have the download button disabled initially', () => {
-      const downloadButton = wrapper.find('button.btn')
+      const downloadButton = wrapper.find('button.btn:not(.upload-btn)')
       expect(downloadButton.element).toHaveProperty('disabled', true)
     })
 
@@ -133,7 +133,7 @@ describe('App.vue - URDF Upload/Download', () => {
       wrapper.vm.handleUrdfLoad(robotNode)
       await nextTick()
 
-      const downloadButton = wrapper.find('button.btn')
+      const downloadButton = wrapper.find('button.btn:not(.upload-btn)')
       expect(downloadButton.element).toHaveProperty('disabled', false)
     })
   })

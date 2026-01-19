@@ -65,8 +65,7 @@ const initThreeJS = () => {
   // Handle window resize
   window.addEventListener('resize', handleResize)
 
-  // Load sample robot
-  loadSampleRobot()
+  // Don't load sample robot - start with empty scene
 
   // Animation loop
   animate()
