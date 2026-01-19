@@ -111,7 +111,7 @@ describe('App.vue - URDF Upload/Download', () => {
 
       // Verify the input exists and accepts URDF files
       expect(fileInput.exists()).toBe(true)
-      expect(fileInput.attributes('accept')).toBe('.urdf,.xml')
+      expect(fileInput.attributes('accept')).toBe('.urdf,.xml,application/xml,text/xml')
     })
 
     it('should enable download button after URDF is loaded', async () => {

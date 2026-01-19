@@ -93,7 +93,7 @@ const generateNodeXML = (node: URDFNode, indent: number): string => {
         <input
           id="file-upload"
           type="file"
-          accept=".urdf,.xml"
+          accept=".urdf,.xml,application/xml,text/xml"
           @change="handleUpload"
           style="display: none"
         />
