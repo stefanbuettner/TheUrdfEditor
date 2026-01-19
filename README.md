@@ -50,6 +50,21 @@ npm run dev
 npm run build
 ```
 
+### Run Tests
+
+```sh
+# Run tests in watch mode
+npm test
+
+# Run tests once
+npm run test:run
+
+# Run tests with UI
+npm run test:ui
+```
+
+For more information about the test suite, see [src/test/README.md](src/test/README.md).
+
 ## Deployment
 
 The application uses an advanced GitHub Pages deployment strategy that supports both production and preview deployments:
