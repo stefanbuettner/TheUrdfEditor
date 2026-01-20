@@ -85,145 +85,77 @@ const animate = () => {
   renderer.render(scene, camera)
 }
 
-const loadSampleRobot = () => {
-  // Create a simple sample robot structure
-  const robotNode: URDFNode = {
-    name: 'sample_robot',
-    type: 'robot',
-    children: [
-      {
-        name: 'base_link',
-        type: 'link',
-        children: [],
-        properties: {
-          position: [0, 0, 0],
-          rotation: [0, 0, 0]
-        }
-      },
-      {
-        name: 'joint_1',
-        type: 'joint',
-        children: [
-          {
-            name: 'link_1',
-            type: 'link',
-            children: [],
-            properties: {
-              position: [0, 1, 0],
-              rotation: [0, 0, 0]
-            }
-          }
-        ],
-        properties: {
-          type: 'revolute',
-          axis: [0, 0, 1]
-        }
-      }
-    ],
-    properties: {
-      version: '1.0'
-    }
-  }
 
-  // Create visual representation
-  const baseGeometry = new THREE.BoxGeometry(1, 0.2, 1)
-  const baseMaterial = new THREE.MeshPhongMaterial({ color: 0x42b983 })
-  const baseMesh = new THREE.Mesh(baseGeometry, baseMaterial)
-  scene.add(baseMesh)
 
-  const linkGeometry = new THREE.CylinderGeometry(0.1, 0.1, 1, 16)
-  const linkMaterial = new THREE.MeshPhongMaterial({ color: 0x3498db })
-  const linkMesh = new THREE.Mesh(linkGeometry, linkMaterial)
-  linkMesh.position.set(0, 1, 0)
-  scene.add(linkMesh)
-
-  // Emit the loaded robot structure
-  emit('urdf-loaded', robotNode)
-}
-
-const loadURDFContent = (content: string, filename: string) => {
-  // Parse URDF XML and create node structure
-  const parser = new DOMParser()
-  const xmlDoc = parser.parseFromString(content, 'text/xml')
-  
-  // Check for parsing errors
-  const parserError = xmlDoc.querySelector('parsererror')
-  if (parserError) {
-    console.error('XML parsing error:', parserError.textContent)
-    throw new Error('Invalid URDF XML format')
-  }
-  
-  const robotElement = xmlDoc.querySelector('robot')
-  if (!robotElement) {
-    throw new Error('No robot element found in URDF')
-  }
-  
-  const robotName = robotElement.getAttribute('name') || 'unnamed_robot'
-  
-  // Build node structure from URDF
-  const robotNode: URDFNode = {
-    name: robotName,
-    type: 'robot',
-    children: [],
-    properties: {}
-  }
-  
-  // Parse links
-  const links = robotElement.querySelectorAll('link')
-  links.forEach(link => {
-    const linkName = link.getAttribute('name') || 'unnamed_link'
-    const linkNode: URDFNode = {
-      name: linkName,
-      type: 'link',
+const convertURDFToNodeStructure = (urdfRobot: any): URDFNode => {
+  // Recursively convert URDF loader structure to our node structure
+  const convert = (obj: any): URDFNode => {
+    const node: URDFNode = {
+      name: obj.name || 'unnamed',
+      type: obj.isURDFRobot ? 'robot' : obj.isURDFLink ? 'link' : obj.isURDFJoint ? 'joint' : 'link',
       children: [],
       properties: {}
     }
-    
-    // Parse visual elements
-    const visual = link.querySelector('visual > origin')
-    if (visual) {
-      const xyz = visual.getAttribute('xyz')?.split(' ').map(Number) || [0, 0, 0]
-      const rpy = visual.getAttribute('rpy')?.split(' ').map(Number) || [0, 0, 0]
-      linkNode.properties = { position: xyz, rotation: rpy }
+
+    // Add joint-specific properties
+    if (obj.isURDFJoint && obj.jointType) {
+      node.properties!.type = obj.jointType
+      if (obj.axis) {
+        node.properties!.axis = [obj.axis.x, obj.axis.y, obj.axis.z]
+      }
     }
-    
-    robotNode.children.push(linkNode)
-  })
-  
-  // Parse joints
-  const joints = robotElement.querySelectorAll('joint')
-  joints.forEach(joint => {
-    const jointName = joint.getAttribute('name') || 'unnamed_joint'
-    const jointType = joint.getAttribute('type') || 'fixed'
-    const jointNode: URDFNode = {
-      name: jointName,
-      type: 'joint',
-      children: [],
-      properties: { type: jointType }
+
+    // Add link/visual properties
+    if (obj.position) {
+      node.properties!.position = [obj.position.x, obj.position.y, obj.position.z]
     }
-    
-    // Parse axis
-    const axis = joint.querySelector('axis')
-    if (axis && jointNode.properties) {
-      const axisXyz = axis.getAttribute('xyz')?.split(' ').map(Number) || [0, 0, 1]
-      jointNode.properties.axis = axisXyz
+    if (obj.rotation) {
+      node.properties!.rotation = [obj.rotation.x, obj.rotation.y, obj.rotation.z]
     }
-    
-    robotNode.children.push(jointNode)
-  })
-  
+
+    // Process children
+    if (obj.children) {
+      obj.children.forEach((child: any) => {
+        if (child.isURDFLink || child.isURDFJoint) {
+          node.children.push(convert(child))
+        }
+      })
+    }
+
+    return node
+  }
+
+  return convert(urdfRobot)
+}
+
+const loadURDFContent = (content: string, filename: string) => {
   // Clear existing robot from scene
   if (robot) {
     scene.remove(robot)
     robot = null
   }
+
+  // Use urdf-loader to load and visualize the URDF
+  const loader = new URDFLoader()
   
-  // For now, create a simple visual representation
-  // In the future, use urdf-loader to load the actual 3D model
-  const baseGeometry = new THREE.BoxGeometry(0.5, 0.5, 0.5)
-  const baseMaterial = new THREE.MeshPhongMaterial({ color: 0xff0000 })
-  const baseMesh = new THREE.Mesh(baseGeometry, baseMaterial)
-  scene.add(baseMesh)
+  // Configure loader
+  loader.loadMeshCb = (path: string, manager: any, onComplete: (obj: any) => void) => {
+    // For now, create default geometry if no mesh file is provided
+    // This allows URDF files without external meshes to still visualize
+    const geometry = new THREE.BoxGeometry(0.1, 0.1, 0.1)
+    const material = new THREE.MeshPhongMaterial({ color: 0xcccccc })
+    const mesh = new THREE.Mesh(geometry, material)
+    onComplete(mesh)
+  }
+
+  // Parse the URDF content
+  robot = loader.parse(content)
+  
+  // Add robot to scene
+  scene.add(robot)
+
+  // Convert to node structure for hierarchy display
+  const robotNode = convertURDFToNodeStructure(robot)
   
   // Emit the loaded robot structure
   emit('urdf-loaded', robotNode)
