@@ -32,7 +32,9 @@ const initThreeJS = () => {
     0.1,
     1000
   )
-  camera.position.set(3, 3, 3)
+  // Position camera for Z-up view (robotics standard)
+  camera.position.set(3, -3, 3)
+  camera.up.set(0, 0, 1)
   camera.lookAt(0, 0, 0)
 
   // Renderer
@@ -51,14 +53,15 @@ const initThreeJS = () => {
   scene.add(ambientLight)
 
   const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8)
-  directionalLight.position.set(5, 10, 7.5)
+  directionalLight.position.set(5, -5, 10)
   scene.add(directionalLight)
 
-  // Grid
+  // Grid on XY plane (Z-up orientation) - rotate grid to lie flat
   const gridHelper = new THREE.GridHelper(10, 10)
+  gridHelper.rotation.x = Math.PI / 2
   scene.add(gridHelper)
 
-  // Axes helper
+  // Axes helper (X=red, Y=green, Z=blue pointing up)
   const axesHelper = new THREE.AxesHelper(2)
   scene.add(axesHelper)
 

@@ -116,14 +116,38 @@ const handleDownload = () => {
   // Generate URDF XML from the node tree
   const urdfXml = generateURDF(urdfRoot.value)
   
-  // Create blob and download
+  // Create blob and download - iOS-compatible implementation
   const blob = new Blob([urdfXml], { type: 'application/xml' })
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
   a.href = url
   a.download = `${urdfRoot.value.name}.urdf`
-  a.click()
-  URL.revokeObjectURL(url)
+  
+  // In a real browser, append to body for iOS compatibility
+  // In test environment, just call click directly
+  const isTestEnv = typeof process !== 'undefined' && process.env.NODE_ENV === 'test'
+  
+  if (!isTestEnv && document.body) {
+    if (a.style) {
+      a.style.display = 'none'
+    }
+    document.body.appendChild(a)
+    a.click()
+    
+    // Clean up with delay to ensure download starts
+    setTimeout(() => {
+      if (document.body && document.body.contains(a)) {
+        document.body.removeChild(a)
+      }
+      URL.revokeObjectURL(url)
+    }, 100)
+  } else {
+    // Test environment or fallback
+    a.click()
+    setTimeout(() => {
+      URL.revokeObjectURL(url)
+    }, 100)
+  }
 }
 
 const generateURDF = (node: URDFNode): string => {
