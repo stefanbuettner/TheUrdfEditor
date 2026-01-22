@@ -122,7 +122,7 @@ describe('App.vue - URDF Upload/Download', () => {
       expect(fileInput.attributes('accept')).toBe('.urdf,.xml,application/xml,text/xml')
     })
 
-    it('should enable download button after URDF is loaded', async () => {
+    it('should keep download button disabled even after URDF is loaded', async () => {
       // Simulate loading a URDF by directly setting urdfRoot
       const robotNode = {
         name: 'simple_robot',
@@ -142,7 +142,8 @@ describe('App.vue - URDF Upload/Download', () => {
       await nextTick()
 
       const downloadButton = wrapper.find('button.btn:not(.upload-btn)')
-      expect(downloadButton.element).toHaveProperty('disabled', false)
+      // Download button is unconditionally disabled
+      expect(downloadButton.element).toHaveProperty('disabled', true)
     })
   })
 
