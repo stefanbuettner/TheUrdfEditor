@@ -1,0 +1,41 @@
+{
+  "name": "the-urdf-editor",
+  "version": "0.0.0",
+  "description": "A web-based editor for URDF files with 3D visualization",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": "^20.19.0 || >=22.12.0"
+  },
+  "scripts": {
+    "dev": "vite",
+    "build": "run-p type-check \"build-only {@}\" --",
+    "preview": "vite preview",
+    "build-only": "vite build",
+    "type-check": "vue-tsc --build",
+    "test": "vitest",
+    "test:ui": "vitest --ui",
+    "test:run": "vitest run"
+  },
+  "dependencies": {
+    "@types/three": "^0.182.0",
+    "three": "^0.182.0",
+    "urdf-loader": "^0.12.6",
+    "vue": "^3.5.26"
+  },
+  "devDependencies": {
+    "@tsconfig/node24": "^24.0.3",
+    "@types/node": "^24.10.4",
+    "@vitejs/plugin-vue": "^6.0.3",
+    "@vitest/ui": "^4.0.17",
+    "@vue/test-utils": "^2.4.6",
+    "@vue/tsconfig": "^0.8.1",
+    "happy-dom": "^20.3.3",
+    "npm-run-all2": "^8.0.4",
+    "typescript": "~5.9.3",
+    "vite": "^7.3.0",
+    "vite-plugin-vue-devtools": "^8.0.5",
+    "vitest": "^4.0.17",
+    "vue-tsc": "^3.2.2"
+  }
+}

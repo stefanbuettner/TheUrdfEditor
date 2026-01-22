@@ -1,0 +1,87 @@
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches:
+      - '**'  # Deploy all branches
+  workflow_dispatch:
+
+permissions:
+  contents: write  # Need write for gh-pages branch
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages-${{ github.ref_name }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      
+      - name: Install dependencies
+        run: npm ci
+      
+      - name: Determine deployment path
+        id: deploy-path
+        run: |
+          BRANCH_NAME="${{ github.ref_name }}"
+          if [ "$BRANCH_NAME" = "main" ]; then
+            echo "path=" >> $GITHUB_OUTPUT
+            echo "base=/TheUrdfEditor/" >> $GITHUB_OUTPUT
+            echo "is_main=true" >> $GITHUB_OUTPUT
+          else
+            # Sanitize branch name for use in URL
+            SANITIZED=$(echo "$BRANCH_NAME" | sed 's/[^a-zA-Z0-9-]/-/g' | tr '[:upper:]' '[:lower:]')
+            echo "path=branches/$SANITIZED" >> $GITHUB_OUTPUT
+            echo "base=/TheUrdfEditor/branches/$SANITIZED/" >> $GITHUB_OUTPUT
+            echo "is_main=false" >> $GITHUB_OUTPUT
+          fi
+      
+      - name: Update Vite config for branch deployment
+        if: steps.deploy-path.outputs.is_main == 'false'
+        run: |
+          cat > vite.config.ts << 'EOF'
+          import { fileURLToPath, URL } from 'node:url'
+          
+          import { defineConfig } from 'vite'
+          import vue from '@vitejs/plugin-vue'
+          import vueDevTools from 'vite-plugin-vue-devtools'
+          
+          // https://vite.dev/config/
+          export default defineConfig({
+            base: '${{ steps.deploy-path.outputs.base }}',
+            plugins: [
+              vue(),
+              vueDevTools(),
+            ],
+            resolve: {
+              alias: {
+                '@': fileURLToPath(new URL('./src', import.meta.url))
+              },
+            },
+          })
+          EOF
+      
+      - name: Build
+        run: npm run build
+      
+      - name: Deploy to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./dist
+          destination_dir: ${{ steps.deploy-path.outputs.path }}
+          keep_files: true  # Keep other branch deployments
+          user_name: 'github-actions[bot]'
+          user_email: 'github-actions[bot]@users.noreply.github.com'
+          commit_message: 'Deploy ${{ github.ref_name }}'

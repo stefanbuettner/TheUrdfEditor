@@ -1,0 +1,9 @@
+<?xml version="1.0"?>
+<robot name="simple_robot">
+  <link name="base_link">
+  </link>
+  <joint name="joint_1" type="revolute">
+  </joint>
+  <link name="link_1">
+  </link>
+</robot>
