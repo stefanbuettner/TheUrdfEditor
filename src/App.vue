@@ -220,7 +220,7 @@ const generateNodeXML = (node: URDFNode, indent: number): string => {
           @change="handleUpload"
           style="display: none"
         />
-        <button class="btn" :disabled="!urdfRoot" @click="handleDownload">Download URDF</button>
+        <button class="btn" :disabled="true" @click="handleDownload">Download URDF</button>
       </div>
     </header>
     
