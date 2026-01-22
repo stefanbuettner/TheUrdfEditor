@@ -63,6 +63,7 @@ const nodeIcon = computed(() => {
   cursor: pointer;
   border-radius: 4px;
   transition: background-color 0.2s;
+  min-width: max-content;
 }
 
 .node-label:hover {
@@ -85,8 +86,8 @@ const nodeIcon = computed(() => {
   margin-right: 0.5rem;
 }
 
-.node-name.selected {
-   color: #ffffff;
+.node-label.selected .node-name {
+  color: #ffffff;
 }
 
 .node-type {
