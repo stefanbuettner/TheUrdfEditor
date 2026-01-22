@@ -81,7 +81,12 @@ const nodeIcon = computed(() => {
 
 .node-name {
   font-weight: 500;
+  color: #000000;
   margin-right: 0.5rem;
+}
+
+.node-name.selected {
+   color: #ffffff;
 }
 
 .node-type {
