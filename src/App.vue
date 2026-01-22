@@ -123,26 +123,35 @@ const handleDownload = () => {
   a.href = url
   a.download = `${urdfRoot.value.name}.urdf`
   
-  // In a real browser, append to body for iOS compatibility
-  // In test environment, just call click directly
-  const isTestEnv = typeof process !== 'undefined' && process.env.NODE_ENV === 'test'
-  
-  if (!isTestEnv && document.body) {
-    if (a.style) {
-      a.style.display = 'none'
-    }
-    document.body.appendChild(a)
-    a.click()
-    
-    // Clean up with delay to ensure download starts
-    setTimeout(() => {
-      if (document.body && document.body.contains(a)) {
-        document.body.removeChild(a)
+  // Try to append to body for better iOS compatibility, with fallback
+  try {
+    if (document.body) {
+      if (a.style) {
+        a.style.display = 'none'
       }
-      URL.revokeObjectURL(url)
-    }, 100)
-  } else {
-    // Test environment or fallback
+      document.body.appendChild(a)
+      a.click()
+      
+      // Clean up with delay to ensure download starts
+      setTimeout(() => {
+        try {
+          if (document.body && document.body.contains(a)) {
+            document.body.removeChild(a)
+          }
+        } catch (e) {
+          // Ignore cleanup errors
+        }
+        URL.revokeObjectURL(url)
+      }, 100)
+    } else {
+      // Fallback when document.body is not available
+      a.click()
+      setTimeout(() => {
+        URL.revokeObjectURL(url)
+      }, 100)
+    }
+  } catch (e) {
+    // Fallback for environments that don't support appendChild (e.g., some test environments)
     a.click()
     setTimeout(() => {
       URL.revokeObjectURL(url)

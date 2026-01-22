@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest'
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { mount, VueWrapper } from '@vue/test-utils'
 import App from '../App.vue'
 import { createUrdfFile, normalizeXml, compareXml, testScenarios, type TestScenario } from './test-utils'
@@ -33,6 +33,9 @@ describe('App.vue - URDF Upload/Download', () => {
   let wrapper: VueWrapper<any>
 
   beforeEach(() => {
+    // Suppress console.error during tests to avoid noise from expected errors
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    
     // Mock Three.js components to avoid rendering issues in tests
     vi.mock('three', () => ({
       Scene: vi.fn(() => ({ add: vi.fn(), background: null })),
@@ -73,6 +76,11 @@ describe('App.vue - URDF Upload/Download', () => {
         }
       }
     })
+  })
+
+  afterEach(() => {
+    // Restore console.error after each test
+    vi.restoreAllMocks()
   })
 
   describe('Initial State', () => {
