@@ -5,7 +5,7 @@ import HierarchyPanel from '../components/HierarchyPanel.vue'
 import type { URDFNode } from '../types/urdf'
 
 describe('HierarchyPanel.vue - Collapsible Hierarchy', () => {
-  let wrapper: VueWrapper<any>
+  let wrapper: VueWrapper<InstanceType<typeof HierarchyPanel>>
   let mockRootNode: URDFNode
 
   beforeEach(() => {
