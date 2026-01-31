@@ -1,12 +1,19 @@
 <script setup lang="ts">
-import { ref, onMounted, onBeforeUnmount } from 'vue'
+import { ref, onMounted, onBeforeUnmount, watch } from 'vue'
 import * as THREE from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 import URDFLoader from 'urdf-loader'
 import type { URDFNode } from '../types/urdf'
 
+interface Props {
+  selectedNode?: URDFNode | null
+}
+
+const props = defineProps<Props>()
+
 const emit = defineEmits<{
   'urdf-loaded': [root: URDFNode]
+  'node-selected': [node: URDFNode | null]
 }>()
 
 const canvasContainer = ref<HTMLDivElement | null>(null)
@@ -17,6 +24,9 @@ let renderer: THREE.WebGLRenderer
 let controls: OrbitControls
 let animationId: number
 let robot: any = null
+let raycaster: THREE.Raycaster
+let mouse: THREE.Vector2
+let outlineObjects: THREE.Object3D[] = []
 
 const initThreeJS = () => {
   if (!canvasContainer.value) return
@@ -65,8 +75,15 @@ const initThreeJS = () => {
   const axesHelper = new THREE.AxesHelper(2)
   scene.add(axesHelper)
 
+  // Raycaster for click detection
+  raycaster = new THREE.Raycaster()
+  mouse = new THREE.Vector2()
+
   // Handle window resize
   window.addEventListener('resize', handleResize)
+  
+  // Handle mouse clicks
+  renderer.domElement.addEventListener('click', handleClick)
 
   // Don't load sample robot - start with empty scene
 
@@ -88,7 +105,88 @@ const animate = () => {
   renderer.render(scene, camera)
 }
 
+const handleClick = (event: MouseEvent) => {
+  if (!canvasContainer.value || !robot) return
 
+  // Calculate mouse position in normalized device coordinates
+  const rect = canvasContainer.value.getBoundingClientRect()
+  mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1
+  mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1
+
+  // Update the raycaster
+  raycaster.setFromCamera(mouse, camera)
+
+  // Find intersections with robot parts
+  const intersects = raycaster.intersectObject(robot, true)
+
+  if (intersects.length > 0) {
+    const intersection = intersects[0]
+    if (intersection && intersection.object) {
+      // Find the clicked URDF component
+      const clickedObject = intersection.object
+      const node = findNodeByObject3D(clickedObject)
+      if (node) {
+        emit('node-selected', node)
+        return
+      }
+    }
+  }
+  
+  // Clicked on empty space or no valid node - clear selection
+  emit('node-selected', null)
+}
+
+const findNodeByObject3D = (object: THREE.Object3D): URDFNode | null => {
+  // Traverse up to find a URDF link or joint
+  let current: THREE.Object3D | null = object
+  while (current) {
+    if (current.userData.urdfNode) {
+      return current.userData.urdfNode
+    }
+    current = current.parent
+  }
+  return null
+}
+
+const clearHighlighting = () => {
+  // Remove all outline objects from scene
+  outlineObjects.forEach(outline => {
+    scene.remove(outline)
+  })
+  outlineObjects = []
+}
+
+const highlightNode = (node: URDFNode | null) => {
+  clearHighlighting()
+
+  if (!node || !node.object3D) return
+
+  // Create green outline for the selected object
+  node.object3D.traverse((child: any) => {
+    if (child.isMesh && child.geometry) {
+      // Create edges geometry for outline effect
+      const edges = new THREE.EdgesGeometry(child.geometry)
+      const lineMaterial = new THREE.LineBasicMaterial({ 
+        color: 0x00ff00, 
+        linewidth: 2 
+      })
+      const outline = new THREE.LineSegments(edges, lineMaterial)
+      
+      // Match the world transform of the original mesh
+      child.getWorldPosition(outline.position)
+      child.getWorldQuaternion(outline.quaternion)
+      child.getWorldScale(outline.scale)
+      
+      scene.add(outline)
+      outlineObjects.push(outline)
+    }
+  })
+}
+
+// Watch for selection changes from parent
+watch(() => props.selectedNode, (newNode) => {
+  highlightNode(newNode ?? null)
+})
 
 const convertURDFToNodeStructure = (urdfRobot: any): URDFNode => {
   // Recursively convert URDF loader structure to our node structure
@@ -97,8 +195,13 @@ const convertURDFToNodeStructure = (urdfRobot: any): URDFNode => {
       name: obj.name || 'unnamed',
       type: obj.isURDFRobot ? 'robot' : obj.isURDFLink ? 'link' : obj.isURDFJoint ? 'joint' : 'link',
       children: [],
-      properties: {}
+      properties: {},
+      object3D: obj // Store reference to Three.js object
     }
+
+    // Store URDFNode reference in the Three.js object for reverse lookup
+    obj.userData = obj.userData || {}
+    obj.userData.urdfNode = node
 
     // Add joint-specific properties
     if (obj.isURDFJoint && obj.jointType) {
@@ -175,6 +278,12 @@ const cleanup = () => {
   }
   
   window.removeEventListener('resize', handleResize)
+  
+  if (renderer && renderer.domElement) {
+    renderer.domElement.removeEventListener('click', handleClick)
+  }
+  
+  clearHighlighting()
   
   if (renderer) {
     renderer.dispose()
