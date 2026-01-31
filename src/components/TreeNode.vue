@@ -1,10 +1,14 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref, watch, onMounted } from 'vue'
 import type { URDFNode } from '../types/urdf'
 
 interface Props {
   node: URDFNode
   selected: URDFNode | null
+  expandAll?: number
+  collapseAll?: number
+  isRoot?: boolean
+  forceCollapsed?: boolean
 }
 
 const props = defineProps<Props>()
@@ -12,10 +16,64 @@ const emit = defineEmits<{
   select: [node: URDFNode]
 }>()
 
+const expanded = ref(true)
+const forceChildrenCollapsed = ref(false)
+
+// Initialize collapsed state if parent wants us collapsed
+onMounted(() => {
+  if (props.forceCollapsed) {
+    expanded.value = false
+  }
+})
+
+// Watch for expand/collapse all events
+watch(() => props.expandAll, (newVal) => {
+  if (newVal !== undefined && newVal > 0) {
+    expanded.value = true
+    forceChildrenCollapsed.value = false
+  }
+})
+
+watch(() => props.collapseAll, (newVal) => {
+  if (newVal !== undefined && newVal > 0) {
+    // Keep root expanded, collapse everything else
+    if (props.isRoot) {
+      expanded.value = true
+      forceChildrenCollapsed.value = true
+    } else {
+      expanded.value = false
+      forceChildrenCollapsed.value = false
+    }
+  }
+})
+
+watch(() => props.forceCollapsed, (newVal) => {
+  if (newVal) {
+    expanded.value = false
+  }
+})
+
 const isSelected = computed(() => props.selected === props.node)
+
+const hasChildren = computed(() => 
+  props.node.children && props.node.children.length > 0
+)
 
 const handleSelect = () => {
   emit('select', props.node)
+}
+
+const toggleExpand = (event: Event) => {
+  event.stopPropagation()
+  const wasCollapsed = !expanded.value
+  expanded.value = !expanded.value
+  
+  // When expanding a collapsed node, force its children to be collapsed
+  if (wasCollapsed && expanded.value && hasChildren.value) {
+    forceChildrenCollapsed.value = true
+  } else if (!expanded.value) {
+    forceChildrenCollapsed.value = false
+  }
 }
 
 const nodeIcon = computed(() => {
@@ -35,16 +93,29 @@ const nodeIcon = computed(() => {
       :class="{ selected: isSelected }"
       @click="handleSelect"
     >
+      <button 
+        v-if="hasChildren"
+        class="expand-button"
+        @click="toggleExpand"
+        :aria-label="expanded ? 'Collapse' : 'Expand'"
+      >
+        {{ expanded ? '▼' : '▶' }}
+      </button>
+      <span v-else class="node-spacer"></span>
       <span class="node-icon">{{ nodeIcon }}</span>
       <span class="node-name">{{ node.name }}</span>
       <span class="node-type">[{{ node.type }}]</span>
     </div>
-    <div v-if="node.children && node.children.length > 0" class="node-children">
+    <div v-if="hasChildren && expanded" class="node-children">
       <TreeNode
         v-for="(child, index) in node.children"
         :key="index"
         :node="child"
         :selected="selected"
+        :expand-all="expandAll"
+        :collapse-all="collapseAll"
+        :is-root="false"
+        :force-collapsed="forceChildrenCollapsed"
         @select="$emit('select', $event)"
       />
     </div>
@@ -73,6 +144,39 @@ const nodeIcon = computed(() => {
 .node-label.selected {
   background-color: #42b983;
   color: white;
+}
+
+.expand-button {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  margin-right: 0.25rem;
+  font-size: 0.75rem;
+  color: #666;
+  width: 1rem;
+  height: 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.2s;
+}
+
+.expand-button:hover {
+  color: #000;
+}
+
+.node-label.selected .expand-button {
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.node-label.selected .expand-button:hover {
+  color: #ffffff;
+}
+
+.node-spacer {
+  width: 1rem;
+  margin-right: 0.25rem;
 }
 
 .node-icon {
