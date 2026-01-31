@@ -68,6 +68,10 @@ const handleUploadFromUrl = () => {
 
 const cancelUrlDialog = () => {
   showUrlDialog.value = false
+  clearUrlInputs()
+}
+
+const clearUrlInputs = () => {
   urlInput.value = ''
   packagePathInput.value = ''
 }
@@ -99,14 +103,12 @@ const loadFromUrl = async () => {
     }
     
     showUrlDialog.value = false
-    urlInput.value = ''
-    packagePathInput.value = ''
+    clearUrlInputs()
   } catch (error) {
     console.error('Error loading URDF from URL:', error)
     alert(`Failed to load URDF from URL: ${error}`)
     showUrlDialog.value = false
-    urlInput.value = ''
-    packagePathInput.value = ''
+    clearUrlInputs()
   }
 }
 

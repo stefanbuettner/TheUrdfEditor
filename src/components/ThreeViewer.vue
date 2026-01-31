@@ -322,9 +322,10 @@ const loadURDFContent = (content: string, filename: string, packagePath: string 
   // Configure package path for resolving package:// URLs
   if (packagePath) {
     // Set packages to resolve package:// URLs to the provided base path
+    // Note: Currently all packages resolve to the same base path
+    // This works for URDFs where all meshes are in the same repository
+    // For URDFs with multiple package references, a package mapping would be needed
     loader.packages = (packageName: string) => {
-      // Return the package path for any package name
-      // This assumes all packages are relative to the same base path
       return packagePath
     }
   }
@@ -361,10 +362,14 @@ const loadURDFContent = (content: string, filename: string, packagePath: string 
           new OBJLoader(manager).load(
             path,
             (obj) => {
-              // Apply default material to all meshes in OBJ
+              // Apply default material only to meshes without materials
               obj.traverse((child) => {
                 if ((child as THREE.Mesh).isMesh) {
-                  (child as THREE.Mesh).material = new THREE.MeshPhongMaterial({ color: 0xcccccc })
+                  const mesh = child as THREE.Mesh
+                  // Only apply default material if no material exists
+                  if (!mesh.material || (Array.isArray(mesh.material) && mesh.material.length === 0)) {
+                    mesh.material = new THREE.MeshPhongMaterial({ color: 0xcccccc })
+                  }
                 }
               })
               onComplete(obj)
