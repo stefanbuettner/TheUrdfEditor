@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
+import * as THREE from 'three'
 import type { URDFNode } from '../types/urdf'
 
 interface Props {
@@ -17,12 +18,50 @@ const properties = computed(() => {
   props_list.push({ key: 'Name', value: props.node.name })
   props_list.push({ key: 'Type', value: props.node.type })
   
+  // Get live position and rotation from Three.js object if available
+  if (props.node.object3D) {
+    const obj = props.node.object3D
+    const worldPos = new THREE.Vector3()
+    const worldQuat = new THREE.Quaternion()
+    const worldEuler = new THREE.Euler()
+    
+    obj.getWorldPosition(worldPos)
+    obj.getWorldQuaternion(worldQuat)
+    worldEuler.setFromQuaternion(worldQuat)
+    
+    props_list.push({ 
+      key: 'Position', 
+      value: `[${worldPos.x.toFixed(3)}, ${worldPos.y.toFixed(3)}, ${worldPos.z.toFixed(3)}]`
+    })
+    props_list.push({ 
+      key: 'Rotation', 
+      value: `[${worldEuler.x.toFixed(3)}, ${worldEuler.y.toFixed(3)}, ${worldEuler.z.toFixed(3)}]`
+    })
+  } else if (props.node.properties) {
+    // Fallback to static properties if no object3D
+    if (props.node.properties.position) {
+      props_list.push({ 
+        key: 'Position', 
+        value: JSON.stringify(props.node.properties.position)
+      })
+    }
+    if (props.node.properties.rotation) {
+      props_list.push({ 
+        key: 'Rotation', 
+        value: JSON.stringify(props.node.properties.rotation)
+      })
+    }
+  }
+  
+  // Add other properties (excluding position and rotation which we handled above)
   if (props.node.properties) {
     for (const [key, value] of Object.entries(props.node.properties)) {
-      props_list.push({ 
-        key: key.charAt(0).toUpperCase() + key.slice(1), 
-        value: typeof value === 'object' ? JSON.stringify(value, null, 2) : String(value)
-      })
+      if (key !== 'position' && key !== 'rotation') {
+        props_list.push({ 
+          key: key.charAt(0).toUpperCase() + key.slice(1), 
+          value: typeof value === 'object' ? JSON.stringify(value, null, 2) : String(value)
+        })
+      }
     }
   }
   

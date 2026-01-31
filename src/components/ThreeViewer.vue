@@ -27,6 +27,7 @@ let robot: any = null
 let raycaster = new THREE.Raycaster()
 let mouse = new THREE.Vector2()
 let outlineObjects: THREE.Object3D[] = []
+let mouseDownPos: { x: number; y: number } | null = null
 
 const initThreeJS = () => {
   if (!canvasContainer.value) return
@@ -78,7 +79,8 @@ const initThreeJS = () => {
   // Handle window resize
   window.addEventListener('resize', handleResize)
   
-  // Handle mouse clicks
+  // Handle mouse events to distinguish clicks from drags
+  renderer.domElement.addEventListener('mousedown', handleMouseDown)
   renderer.domElement.addEventListener('click', handleClick)
 
   // Don't load sample robot - start with empty scene
@@ -101,8 +103,27 @@ const animate = () => {
   renderer.render(scene, camera)
 }
 
+const handleMouseDown = (event: MouseEvent) => {
+  // Record mouse position on mouse down
+  mouseDownPos = { x: event.clientX, y: event.clientY }
+}
+
 const handleClick = (event: MouseEvent) => {
   if (!canvasContainer.value || !robot) return
+
+  // Check if this was a drag (mouse moved significantly)
+  if (mouseDownPos) {
+    const deltaX = Math.abs(event.clientX - mouseDownPos.x)
+    const deltaY = Math.abs(event.clientY - mouseDownPos.y)
+    const threshold = 5 // pixels
+    
+    if (deltaX > threshold || deltaY > threshold) {
+      // This was a drag, not a click - ignore it
+      mouseDownPos = null
+      return
+    }
+  }
+  mouseDownPos = null
 
   // Calculate mouse position in normalized device coordinates
   const rect = canvasContainer.value.getBoundingClientRect()
@@ -157,25 +178,44 @@ const highlightNode = (node: URDFNode | null) => {
 
   if (!node || !node.object3D) return
 
-  // Create green outline for the selected object
-  node.object3D.traverse((child: any) => {
-    if (child.isMesh && child.geometry) {
-      // Create edges geometry for outline effect
-      const edges = new THREE.EdgesGeometry(child.geometry)
-      const lineMaterial = new THREE.LineBasicMaterial({ 
-        color: 0x00ff00
-      })
-      const outline = new THREE.LineSegments(edges, lineMaterial)
-      
-      // Match the world transform of the original mesh
-      child.getWorldPosition(outline.position)
-      child.getWorldQuaternion(outline.quaternion)
-      child.getWorldScale(outline.scale)
-      
-      scene.add(outline)
-      outlineObjects.push(outline)
-    }
-  })
+  // Create green outline for the selected object only (not its children)
+  // Only iterate through direct children of the node's object3D, not the entire subtree
+  const obj3D = node.object3D
+  if (obj3D.isMesh && obj3D.geometry) {
+    // Highlight this mesh directly
+    const edges = new THREE.EdgesGeometry(obj3D.geometry)
+    const lineMaterial = new THREE.LineBasicMaterial({ 
+      color: 0x00ff00
+    })
+    const outline = new THREE.LineSegments(edges, lineMaterial)
+    
+    // Match the world transform of the original mesh
+    obj3D.getWorldPosition(outline.position)
+    obj3D.getWorldQuaternion(outline.quaternion)
+    obj3D.getWorldScale(outline.scale)
+    
+    scene.add(outline)
+    outlineObjects.push(outline)
+  } else {
+    // For non-mesh objects (like groups), only check direct children (one level down)
+    obj3D.children.forEach((child: any) => {
+      if (child.isMesh && child.geometry) {
+        const edges = new THREE.EdgesGeometry(child.geometry)
+        const lineMaterial = new THREE.LineBasicMaterial({ 
+          color: 0x00ff00
+        })
+        const outline = new THREE.LineSegments(edges, lineMaterial)
+        
+        // Match the world transform of the original mesh
+        child.getWorldPosition(outline.position)
+        child.getWorldQuaternion(outline.quaternion)
+        child.getWorldScale(outline.scale)
+        
+        scene.add(outline)
+        outlineObjects.push(outline)
+      }
+    })
+  }
 }
 
 // Watch for selection changes from parent
@@ -275,6 +315,7 @@ const cleanup = () => {
   window.removeEventListener('resize', handleResize)
   
   if (renderer && renderer.domElement) {
+    renderer.domElement.removeEventListener('mousedown', handleMouseDown)
     renderer.domElement.removeEventListener('click', handleClick)
   }
   
