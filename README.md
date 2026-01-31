@@ -2,6 +2,8 @@
 
 A web-based editor for URDF (Unified Robot Description Format) files, built with Vue 3, TypeScript, and Three.js.
 
+https://stefanbuettner.github.io/TheUrdfEditor/
+
 ## Features
 
 - 🎨 **3D Visualization**: Interactive 3D view of robot models using Three.js
