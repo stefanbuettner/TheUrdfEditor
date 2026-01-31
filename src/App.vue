@@ -13,6 +13,15 @@ const urlInput = ref('')
 const threeViewerRef = ref<InstanceType<typeof ThreeViewer> | null>(null)
 
 const handleNodeSelect = (node: URDFNode) => {
+  // Toggle selection: if clicking the same node, deselect it
+  if (selectedNode.value === node) {
+    selectedNode.value = null
+  } else {
+    selectedNode.value = node
+  }
+}
+
+const handle3DNodeSelect = (node: URDFNode | null) => {
   selectedNode.value = node
 }
 
@@ -234,7 +243,9 @@ const generateNodeXML = (node: URDFNode, indent: number): string => {
       <ThreeViewer
         ref="threeViewerRef"
         class="main-viewer"
+        :selected-node="selectedNode"
         @urdf-loaded="handleUrdfLoad"
+        @node-selected="handle3DNodeSelect"
       />
       
       <PropertiesPanel :node="selectedNode" />

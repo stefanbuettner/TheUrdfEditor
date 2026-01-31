@@ -1,12 +1,19 @@
 <script setup lang="ts">
-import { ref, onMounted, onBeforeUnmount } from 'vue'
+import { ref, onMounted, onBeforeUnmount, watch } from 'vue'
 import * as THREE from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 import URDFLoader from 'urdf-loader'
 import type { URDFNode } from '../types/urdf'
 
+interface Props {
+  selectedNode?: URDFNode | null
+}
+
+const props = defineProps<Props>()
+
 const emit = defineEmits<{
   'urdf-loaded': [root: URDFNode]
+  'node-selected': [node: URDFNode | null]
 }>()
 
 const canvasContainer = ref<HTMLDivElement | null>(null)
@@ -17,6 +24,13 @@ let renderer: THREE.WebGLRenderer
 let controls: OrbitControls
 let animationId: number
 let robot: any = null
+let raycaster = new THREE.Raycaster()
+let mouse = new THREE.Vector2()
+let outlineObjects: THREE.Object3D[] = []
+let mouseDownPos: { x: number; y: number } | null = null
+
+// Threshold for distinguishing clicks from drags (in pixels)
+const DRAG_THRESHOLD_PIXELS = 5
 
 const initThreeJS = () => {
   if (!canvasContainer.value) return
@@ -67,6 +81,10 @@ const initThreeJS = () => {
 
   // Handle window resize
   window.addEventListener('resize', handleResize)
+  
+  // Handle mouse events to distinguish clicks from drags
+  renderer.domElement.addEventListener('mousedown', handleMouseDown)
+  renderer.domElement.addEventListener('click', handleClick)
 
   // Don't load sample robot - start with empty scene
 
@@ -88,7 +106,130 @@ const animate = () => {
   renderer.render(scene, camera)
 }
 
+const handleMouseDown = (event: MouseEvent) => {
+  // Record mouse position on mouse down
+  mouseDownPos = { x: event.clientX, y: event.clientY }
+}
 
+const handleClick = (event: MouseEvent) => {
+  if (!canvasContainer.value || !robot) return
+
+  // Check if this was a drag (mouse moved significantly)
+  if (mouseDownPos) {
+    const deltaX = Math.abs(event.clientX - mouseDownPos.x)
+    const deltaY = Math.abs(event.clientY - mouseDownPos.y)
+    
+    if (deltaX > DRAG_THRESHOLD_PIXELS || deltaY > DRAG_THRESHOLD_PIXELS) {
+      // This was a drag, not a click - ignore it
+      mouseDownPos = null
+      return
+    }
+  }
+  mouseDownPos = null
+
+  // Calculate mouse position in normalized device coordinates
+  const rect = canvasContainer.value.getBoundingClientRect()
+  mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1
+  mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1
+
+  // Update the raycaster
+  raycaster.setFromCamera(mouse, camera)
+
+  // Find intersections with robot parts
+  const intersects = raycaster.intersectObject(robot, true)
+
+  if (intersects.length > 0) {
+    const intersection = intersects[0]
+    if (intersection && intersection.object) {
+      // Find the clicked URDF component
+      const clickedObject = intersection.object
+      const node = findNodeByObject3D(clickedObject)
+      if (node) {
+        emit('node-selected', node)
+        return
+      }
+    }
+  }
+  
+  // Clicked on empty space or no valid node - clear selection
+  emit('node-selected', null)
+}
+
+const findNodeByObject3D = (object: THREE.Object3D): URDFNode | null => {
+  // Traverse up to find a URDF link or joint
+  let current: THREE.Object3D | null = object
+  while (current) {
+    if (current.userData.urdfNode) {
+      return current.userData.urdfNode
+    }
+    current = current.parent
+  }
+  return null
+}
+
+const clearHighlighting = () => {
+  // Remove all outline objects from scene
+  outlineObjects.forEach(outline => {
+    scene.remove(outline)
+  })
+  outlineObjects = []
+}
+
+const highlightNode = (node: URDFNode | null) => {
+  clearHighlighting()
+
+  if (!node || !node.object3D) return
+
+  // Create green outline for the selected object only (not child links/joints)
+  // We need to find all meshes within this node, but stop at child URDF elements
+  const obj3D = node.object3D
+  
+  // Helper function to find meshes, stopping at child URDF links/joints
+  const findMeshesInNode = (obj: any, meshes: any[] = []): any[] => {
+    // If this is a child URDF link or joint (not the root we're highlighting), stop here
+    if (obj !== obj3D && (obj.isURDFLink || obj.isURDFJoint)) {
+      return meshes
+    }
+    
+    // If this object is a mesh, add it
+    if (obj.isMesh && obj.geometry) {
+      meshes.push(obj)
+    }
+    
+    // Recursively check children (but will stop at URDF boundaries)
+    if (obj.children) {
+      obj.children.forEach((child: any) => {
+        findMeshesInNode(child, meshes)
+      })
+    }
+    
+    return meshes
+  }
+  
+  const meshes = findMeshesInNode(obj3D)
+  
+  // Create outlines for all found meshes
+  meshes.forEach((mesh: any) => {
+    const edges = new THREE.EdgesGeometry(mesh.geometry)
+    const lineMaterial = new THREE.LineBasicMaterial({ 
+      color: 0x00ff00
+    })
+    const outline = new THREE.LineSegments(edges, lineMaterial)
+    
+    // Match the world transform of the original mesh
+    mesh.getWorldPosition(outline.position)
+    mesh.getWorldQuaternion(outline.quaternion)
+    mesh.getWorldScale(outline.scale)
+    
+    scene.add(outline)
+    outlineObjects.push(outline)
+  })
+}
+
+// Watch for selection changes from parent
+watch(() => props.selectedNode, (newNode) => {
+  highlightNode(newNode ?? null)
+})
 
 const convertURDFToNodeStructure = (urdfRobot: any): URDFNode => {
   // Recursively convert URDF loader structure to our node structure
@@ -97,8 +238,13 @@ const convertURDFToNodeStructure = (urdfRobot: any): URDFNode => {
       name: obj.name || 'unnamed',
       type: obj.isURDFRobot ? 'robot' : obj.isURDFLink ? 'link' : obj.isURDFJoint ? 'joint' : 'link',
       children: [],
-      properties: {}
+      properties: {},
+      object3D: obj // Store reference to Three.js object
     }
+
+    // Store URDFNode reference in the Three.js object for reverse lookup
+    obj.userData = obj.userData || {}
+    obj.userData.urdfNode = node
 
     // Add joint-specific properties
     if (obj.isURDFJoint && obj.jointType) {
@@ -175,6 +321,13 @@ const cleanup = () => {
   }
   
   window.removeEventListener('resize', handleResize)
+  
+  if (renderer && renderer.domElement) {
+    renderer.domElement.removeEventListener('mousedown', handleMouseDown)
+    renderer.domElement.removeEventListener('click', handleClick)
+  }
+  
+  clearHighlighting()
   
   if (renderer) {
     renderer.dispose()
