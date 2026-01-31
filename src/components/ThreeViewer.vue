@@ -29,6 +29,9 @@ let mouse = new THREE.Vector2()
 let outlineObjects: THREE.Object3D[] = []
 let mouseDownPos: { x: number; y: number } | null = null
 
+// Threshold for distinguishing clicks from drags (in pixels)
+const DRAG_THRESHOLD_PIXELS = 5
+
 const initThreeJS = () => {
   if (!canvasContainer.value) return
 
@@ -115,9 +118,8 @@ const handleClick = (event: MouseEvent) => {
   if (mouseDownPos) {
     const deltaX = Math.abs(event.clientX - mouseDownPos.x)
     const deltaY = Math.abs(event.clientY - mouseDownPos.y)
-    const threshold = 5 // pixels
     
-    if (deltaX > threshold || deltaY > threshold) {
+    if (deltaX > DRAG_THRESHOLD_PIXELS || deltaY > DRAG_THRESHOLD_PIXELS) {
       // This was a drag, not a click - ignore it
       mouseDownPos = null
       return
