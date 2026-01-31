@@ -2,6 +2,10 @@
 import { ref, onMounted, onBeforeUnmount, watch } from 'vue'
 import * as THREE from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
+import { STLLoader } from 'three/examples/jsm/loaders/STLLoader.js'
+import { OBJLoader } from 'three/examples/jsm/loaders/OBJLoader.js'
+import { ColladaLoader } from 'three/examples/jsm/loaders/ColladaLoader.js'
+import { PLYLoader } from 'three/examples/jsm/loaders/PLYLoader.js'
 import URDFLoader from 'urdf-loader'
 import type { URDFNode } from '../types/urdf'
 
@@ -277,7 +281,35 @@ const convertURDFToNodeStructure = (urdfRobot: any): URDFNode => {
   return convert(urdfRobot)
 }
 
-const loadURDFContent = (content: string, filename: string) => {
+const createFallbackBillboard = (): THREE.Object3D => {
+  // Create a red exclamation mark billboard for missing meshes
+  const canvas = document.createElement('canvas')
+  canvas.width = 128
+  canvas.height = 128
+  const context = canvas.getContext('2d')
+  
+  if (context) {
+    // Red background
+    context.fillStyle = '#ff0000'
+    context.fillRect(0, 0, 128, 128)
+    
+    // White exclamation mark
+    context.fillStyle = '#ffffff'
+    context.font = 'bold 100px Arial'
+    context.textAlign = 'center'
+    context.textBaseline = 'middle'
+    context.fillText('!', 64, 64)
+  }
+  
+  const texture = new THREE.CanvasTexture(canvas)
+  const material = new THREE.SpriteMaterial({ map: texture })
+  const sprite = new THREE.Sprite(material)
+  sprite.scale.set(0.5, 0.5, 0.5)
+  
+  return sprite
+}
+
+const loadURDFContent = (content: string, filename: string, packagePath: string = '') => {
   // Clear existing robot from scene
   if (robot) {
     scene.remove(robot)
@@ -287,14 +319,94 @@ const loadURDFContent = (content: string, filename: string) => {
   // Use urdf-loader to load and visualize the URDF
   const loader = new URDFLoader()
   
-  // Configure loader
+  // Configure package path for resolving package:// URLs
+  if (packagePath) {
+    // Set packages to resolve package:// URLs to the provided base path
+    loader.packages = (packageName: string) => {
+      // Return the package path for any package name
+      // This assumes all packages are relative to the same base path
+      return packagePath
+    }
+  }
+  
+  // Configure comprehensive mesh loader
   loader.loadMeshCb = (path: string, manager: any, onComplete: (obj: any) => void) => {
-    // For now, create default geometry if no mesh file is provided
-    // This allows URDF files without external meshes to still visualize
-    const geometry = new THREE.BoxGeometry(0.1, 0.1, 0.1)
-    const material = new THREE.MeshPhongMaterial({ color: 0xcccccc })
-    const mesh = new THREE.Mesh(geometry, material)
-    onComplete(mesh)
+    // Determine file extension
+    const extension = path.split('.').pop()?.toLowerCase()
+    
+    console.log(`Loading mesh: ${path} (${extension})`)
+    
+    const onError = (error: any) => {
+      console.warn(`Failed to load mesh ${path}:`, error)
+      // Return fallback billboard on error
+      onComplete(createFallbackBillboard())
+    }
+    
+    try {
+      switch (extension) {
+        case 'stl':
+          new STLLoader(manager).load(
+            path,
+            (geometry) => {
+              const material = new THREE.MeshPhongMaterial({ color: 0xcccccc })
+              const mesh = new THREE.Mesh(geometry, material)
+              onComplete(mesh)
+            },
+            undefined,
+            onError
+          )
+          break
+          
+        case 'obj':
+          new OBJLoader(manager).load(
+            path,
+            (obj) => {
+              // Apply default material to all meshes in OBJ
+              obj.traverse((child) => {
+                if ((child as THREE.Mesh).isMesh) {
+                  (child as THREE.Mesh).material = new THREE.MeshPhongMaterial({ color: 0xcccccc })
+                }
+              })
+              onComplete(obj)
+            },
+            undefined,
+            onError
+          )
+          break
+          
+        case 'dae':
+          new ColladaLoader(manager).load(
+            path,
+            (collada) => {
+              onComplete(collada.scene)
+            },
+            undefined,
+            onError
+          )
+          break
+          
+        case 'ply':
+          new PLYLoader(manager).load(
+            path,
+            (geometry) => {
+              const material = new THREE.MeshPhongMaterial({ color: 0xcccccc })
+              const mesh = new THREE.Mesh(geometry, material)
+              onComplete(mesh)
+            },
+            undefined,
+            onError
+          )
+          break
+          
+        default:
+          console.warn(`Unsupported mesh format: ${extension}`)
+          onComplete(createFallbackBillboard())
+          break
+      }
+    } catch (error) {
+      console.error(`Error loading mesh ${path}:`, error)
+      onComplete(createFallbackBillboard())
+    }
   }
 
   // Parse the URDF content

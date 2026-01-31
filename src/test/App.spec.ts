@@ -314,8 +314,8 @@ describe('App.vue - URDF Upload/Download', () => {
       // Verify fetch was called with correct URL
       expect(global.fetch).toHaveBeenCalledWith('https://example.com/robot.urdf')
       
-      // Verify loadURDFContent was called with the content
-      expect(mockLoadURDFContent).toHaveBeenCalledWith(mockUrdfContent, 'robot.urdf')
+      // Verify loadURDFContent was called with the content and package path
+      expect(mockLoadURDFContent).toHaveBeenCalledWith(mockUrdfContent, 'robot.urdf', 'https://example.com/')
     })
 
     it('should handle fetch errors gracefully', async () => {
@@ -388,8 +388,8 @@ describe('App.vue - URDF Upload/Download', () => {
       await wrapper.vm.loadFromUrl()
       await nextTick()
 
-      // Verify content was loaded
-      expect(mockLoadURDFContent).toHaveBeenCalledWith(redBoxContent, 'red_box.urdf')
+      // Verify content was loaded with package path
+      expect(mockLoadURDFContent).toHaveBeenCalledWith(redBoxContent, 'red_box.urdf', 'https://example.com/')
       
       // Verify red box properties
       expect(redBoxContent).toContain('red_box_robot')
@@ -423,8 +423,8 @@ describe('App.vue - URDF Upload/Download', () => {
       await wrapper.vm.loadFromUrl()
       await nextTick()
 
-      // Verify content was loaded
-      expect(mockLoadURDFContent).toHaveBeenCalledWith(sampleContent, 'sample.urdf')
+      // Verify content was loaded with package path
+      expect(mockLoadURDFContent).toHaveBeenCalledWith(sampleContent, 'sample.urdf', 'https://raw.githubusercontent.com/openrr/urdf-viz/refs/heads/main/')
       
       // Verify sample URDF properties
       expect(sampleContent).toContain('<robot name="robot">')
