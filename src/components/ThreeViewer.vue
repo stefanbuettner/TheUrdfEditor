@@ -24,8 +24,8 @@ let renderer: THREE.WebGLRenderer
 let controls: OrbitControls
 let animationId: number
 let robot: any = null
-let raycaster: THREE.Raycaster
-let mouse: THREE.Vector2
+let raycaster = new THREE.Raycaster()
+let mouse = new THREE.Vector2()
 let outlineObjects: THREE.Object3D[] = []
 
 const initThreeJS = () => {
@@ -74,10 +74,6 @@ const initThreeJS = () => {
   // Axes helper (X=red, Y=green, Z=blue pointing up)
   const axesHelper = new THREE.AxesHelper(2)
   scene.add(axesHelper)
-
-  // Raycaster for click detection
-  raycaster = new THREE.Raycaster()
-  mouse = new THREE.Vector2()
 
   // Handle window resize
   window.addEventListener('resize', handleResize)
@@ -167,8 +163,7 @@ const highlightNode = (node: URDFNode | null) => {
       // Create edges geometry for outline effect
       const edges = new THREE.EdgesGeometry(child.geometry)
       const lineMaterial = new THREE.LineBasicMaterial({ 
-        color: 0x00ff00, 
-        linewidth: 2 
+        color: 0x00ff00
       })
       const outline = new THREE.LineSegments(edges, lineMaterial)
       
