@@ -180,44 +180,50 @@ const highlightNode = (node: URDFNode | null) => {
 
   if (!node || !node.object3D) return
 
-  // Create green outline for the selected object only (not its children)
-  // Only iterate through direct children of the node's object3D, not the entire subtree
+  // Create green outline for the selected object only (not child links/joints)
+  // We need to find all meshes within this node, but stop at child URDF elements
   const obj3D = node.object3D
-  if (obj3D.isMesh && obj3D.geometry) {
-    // Highlight this mesh directly
-    const edges = new THREE.EdgesGeometry(obj3D.geometry)
+  
+  // Helper function to find meshes, stopping at child URDF links/joints
+  const findMeshesInNode = (obj: any, meshes: any[] = []): any[] => {
+    // If this is a child URDF link or joint (not the root we're highlighting), stop here
+    if (obj !== obj3D && (obj.isURDFLink || obj.isURDFJoint)) {
+      return meshes
+    }
+    
+    // If this object is a mesh, add it
+    if (obj.isMesh && obj.geometry) {
+      meshes.push(obj)
+    }
+    
+    // Recursively check children (but will stop at URDF boundaries)
+    if (obj.children) {
+      obj.children.forEach((child: any) => {
+        findMeshesInNode(child, meshes)
+      })
+    }
+    
+    return meshes
+  }
+  
+  const meshes = findMeshesInNode(obj3D)
+  
+  // Create outlines for all found meshes
+  meshes.forEach((mesh: any) => {
+    const edges = new THREE.EdgesGeometry(mesh.geometry)
     const lineMaterial = new THREE.LineBasicMaterial({ 
       color: 0x00ff00
     })
     const outline = new THREE.LineSegments(edges, lineMaterial)
     
     // Match the world transform of the original mesh
-    obj3D.getWorldPosition(outline.position)
-    obj3D.getWorldQuaternion(outline.quaternion)
-    obj3D.getWorldScale(outline.scale)
+    mesh.getWorldPosition(outline.position)
+    mesh.getWorldQuaternion(outline.quaternion)
+    mesh.getWorldScale(outline.scale)
     
     scene.add(outline)
     outlineObjects.push(outline)
-  } else {
-    // For non-mesh objects (like groups), only check direct children (one level down)
-    obj3D.children.forEach((child: any) => {
-      if (child.isMesh && child.geometry) {
-        const edges = new THREE.EdgesGeometry(child.geometry)
-        const lineMaterial = new THREE.LineBasicMaterial({ 
-          color: 0x00ff00
-        })
-        const outline = new THREE.LineSegments(edges, lineMaterial)
-        
-        // Match the world transform of the original mesh
-        child.getWorldPosition(outline.position)
-        child.getWorldQuaternion(outline.quaternion)
-        child.getWorldScale(outline.scale)
-        
-        scene.add(outline)
-        outlineObjects.push(outline)
-      }
-    })
-  }
+  })
 }
 
 // Watch for selection changes from parent
