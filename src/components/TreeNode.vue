@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, ref, watch, onMounted } from 'vue'
 import type { URDFNode } from '../types/urdf'
 
 interface Props {
@@ -8,6 +8,7 @@ interface Props {
   expandAll?: number
   collapseAll?: number
   isRoot?: boolean
+  forceCollapsed?: boolean
 }
 
 const props = defineProps<Props>()
@@ -16,11 +17,20 @@ const emit = defineEmits<{
 }>()
 
 const expanded = ref(true)
+const forceChildrenCollapsed = ref(false)
+
+// Initialize collapsed state if parent wants us collapsed
+onMounted(() => {
+  if (props.forceCollapsed) {
+    expanded.value = false
+  }
+})
 
 // Watch for expand/collapse all events
 watch(() => props.expandAll, (newVal) => {
   if (newVal !== undefined && newVal > 0) {
     expanded.value = true
+    forceChildrenCollapsed.value = false
   }
 })
 
@@ -29,9 +39,17 @@ watch(() => props.collapseAll, (newVal) => {
     // Keep root expanded, collapse everything else
     if (props.isRoot) {
       expanded.value = true
+      forceChildrenCollapsed.value = true
     } else {
       expanded.value = false
+      forceChildrenCollapsed.value = false
     }
+  }
+})
+
+watch(() => props.forceCollapsed, (newVal) => {
+  if (newVal) {
+    expanded.value = false
   }
 })
 
@@ -47,7 +65,15 @@ const handleSelect = () => {
 
 const toggleExpand = (event: Event) => {
   event.stopPropagation()
+  const wasCollapsed = !expanded.value
   expanded.value = !expanded.value
+  
+  // When expanding a collapsed node, force its children to be collapsed
+  if (wasCollapsed && expanded.value && hasChildren.value) {
+    forceChildrenCollapsed.value = true
+  } else if (!expanded.value) {
+    forceChildrenCollapsed.value = false
+  }
 }
 
 const nodeIcon = computed(() => {
@@ -89,6 +115,7 @@ const nodeIcon = computed(() => {
         :expand-all="expandAll"
         :collapse-all="collapseAll"
         :is-root="false"
+        :force-collapsed="forceChildrenCollapsed"
         @select="$emit('select', $event)"
       />
     </div>
