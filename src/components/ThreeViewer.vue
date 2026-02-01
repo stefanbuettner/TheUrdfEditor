@@ -305,18 +305,20 @@ const loadURDFContent = (contentOrUrl: string, filename: string, packagePath: st
   if (defaultLoadMeshCb) {
     // Override with a wrapper that logs but calls the default implementation
     loader.loadMeshCb = (path: string, manager: any, onComplete: (mesh: any) => void) => {
-      console.log(`Attempting to load mesh: ${path}`)
+      console.log(`[Mesh Loader] Attempting to load mesh: ${path}`)
       
       // Call the default loader with wrapped callbacks to add logging
       defaultLoadMeshCb.call(loader, path, manager, (mesh: any) => {
         if (mesh) {
-          console.log(`Successfully loaded mesh: ${path}`)
+          console.log(`[Mesh Loader] Successfully loaded mesh: ${path}`)
         } else {
-          console.warn(`Failed to load mesh: ${path}`)
+          console.warn(`[Mesh Loader] Failed to load mesh: ${path}`)
         }
         onComplete(mesh)
       })
     }
+  } else {
+    console.warn('[Mesh Loader] No default mesh loader found - mesh loading may not work correctly')
   }
 
   // Check if this is a URL or content string
