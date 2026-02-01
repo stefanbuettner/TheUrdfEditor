@@ -3,6 +3,7 @@ import { ref, onMounted, onBeforeUnmount } from 'vue'
 import HierarchyPanel from './components/HierarchyPanel.vue'
 import ThreeViewer from './components/ThreeViewer.vue'
 import PropertiesPanel from './components/PropertiesPanel.vue'
+import ConsolePanel from './components/ConsolePanel.vue'
 import type { URDFNode } from './types/urdf'
 
 const selectedNode = ref<URDFNode | null>(null)
@@ -287,6 +288,9 @@ const generateNodeXML = (node: URDFNode, indent: number): string => {
         </div>
       </div>
     </div>
+
+    <!-- Console Panel -->
+    <ConsolePanel />
   </div>
 </template>
 
