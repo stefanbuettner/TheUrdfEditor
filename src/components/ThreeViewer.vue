@@ -33,12 +33,11 @@ let mouseDownPos: { x: number; y: number } | null = null
 const DRAG_THRESHOLD_PIXELS = 5
 
 // Reusable collision material to avoid creating new materials on each load
-const collisionMaterial = new THREE.MeshPhongMaterial({
-  color: 0xffbe38,  // Yellow color similar to urdf-viewer-element
+const collisionMaterial = new THREE.MeshBasicMaterial({
+  color: 0xffbe38,  // Yellow/orange color
   transparent: true,
   opacity: 0.35,
-  shininess: 2.5,
-  premultipliedAlpha: true
+  depthWrite: false  // Ensure transparency works correctly
 })
 
 const initThreeJS = () => {
@@ -198,8 +197,11 @@ const applyCollisionMaterials = (object: any) => {
           if (mesh.material && mesh.material !== collisionMaterial && mesh.material.dispose) {
             mesh.material.dispose()
           }
-          mesh.material = collisionMaterial
+          // Clone the material to ensure proper application
+          mesh.material = collisionMaterial.clone()
           mesh.visible = true
+          // Force material update
+          mesh.material.needsUpdate = true
         }
       })
     }
@@ -287,16 +289,18 @@ const convertURDFToNodeStructure = (urdfRobot: any): URDFNode => {
 
     // Add collision geometry information for links
     if (obj.isURDFLink || obj.isURDFRobot) {
-      // Find collision geometry children
+      // Find collision geometry - only direct children, not descendants
       const collisionGeometry: any[] = []
-      obj.traverse((child: any) => {
-        if (child.isURDFCollider && child !== obj) {
-          collisionGeometry.push({
-            name: child.urdfName || child.name || 'unnamed_collision',
-            visible: child.visible
-          })
-        }
-      })
+      if (obj.children) {
+        obj.children.forEach((child: any) => {
+          if (child.isURDFCollider) {
+            collisionGeometry.push({
+              name: child.urdfName || child.name || 'unnamed_collision',
+              visible: child.visible
+            })
+          }
+        })
+      }
       
       if (collisionGeometry.length > 0) {
         node.properties!.collisionGeometry = collisionGeometry
