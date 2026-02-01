@@ -298,52 +298,9 @@ const loadURDFContent = (contentOrUrl: string, filename: string, packagePath: st
     }
   }
 
-  // Add custom mesh loading callback to log warnings when meshes fail to load
-  loader.loadMeshCb = (path: string, manager: any, onComplete: (mesh: any) => void) => {
-    console.log(`Attempting to load mesh: ${path}`)
-    
-    // Use the default mesh loading manager which handles STL, DAE, OBJ, etc.
-    const onLoad = (mesh: any) => {
-      console.log(`Successfully loaded mesh: ${path}`)
-      onComplete(mesh)
-    }
-    
-    const onProgress = undefined
-    
-    const onError = (error: any) => {
-      const errorMessage = error?.message || error?.toString() || 'Unknown error'
-      console.warn(`Failed to load mesh: ${path}`, `Reason: ${errorMessage}`)
-      // Still call onComplete to continue loading the rest of the robot
-      // urdf-loader will handle the missing mesh appropriately
-      onComplete(null)
-    }
-    
-    // Use the manager's default loader
-    manager.itemStart(path)
-    
-    // Determine file extension
-    const extension = path.split('.').pop()?.toLowerCase()
-    
-    // Let the manager handle the loading based on file type
-    // The manager has built-in loaders for various formats
-    try {
-      const loader = manager.getHandler(path)
-      if (loader) {
-        loader.load(path, onLoad, onProgress, (err: any) => {
-          manager.itemError(path)
-          onError(err)
-        })
-      } else {
-        // Fallback: try to determine loader based on extension
-        console.warn(`No handler found for mesh: ${path} (extension: ${extension})`)
-        manager.itemError(path)
-        onError(new Error(`No loader available for file extension: ${extension}`))
-      }
-    } catch (error) {
-      manager.itemError(path)
-      onError(error)
-    }
-  }
+  // Note: We let urdf-loader use its default mesh loading which supports
+  // STL and DAE formats automatically. Custom loadMeshCb can be added later
+  // if additional formats need to be supported.
 
   // Check if this is a URL or content string
   const isUrl = contentOrUrl.startsWith('http://') || contentOrUrl.startsWith('https://')
