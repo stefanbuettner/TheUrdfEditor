@@ -1,0 +1,31 @@
+<?xml version="1.0"?>
+<robot name="test_robot">
+  <material name="Blue">
+    <color rgba="0.0 0.0 0.8 1.0"/>
+  </material>
+  
+  <link name="base_link">
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="package://test_robot/meshes/base.stl"/>
+      </geometry>
+      <material name="Blue"/>
+    </visual>
+  </link>
+  
+  <link name="arm_link">
+    <visual>
+      <origin xyz="0 0 0.5" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="package://test_robot/meshes/arm.dae"/>
+      </geometry>
+    </visual>
+  </link>
+  
+  <joint name="base_to_arm" type="fixed">
+    <parent link="base_link"/>
+    <child link="arm_link"/>
+    <origin xyz="0 0 0.5" rpy="0 0 0"/>
+  </joint>
+</robot>
