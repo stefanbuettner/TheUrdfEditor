@@ -277,7 +277,7 @@ const convertURDFToNodeStructure = (urdfRobot: any): URDFNode => {
   return convert(urdfRobot)
 }
 
-const loadURDFContent = (content: string, filename: string) => {
+const loadURDFContent = (contentOrUrl: string, filename: string, packagePath: string = '') => {
   // Clear existing robot from scene
   if (robot) {
     scene.remove(robot)
@@ -287,27 +287,76 @@ const loadURDFContent = (content: string, filename: string) => {
   // Use urdf-loader to load and visualize the URDF
   const loader = new URDFLoader()
   
-  // Configure loader
-  loader.loadMeshCb = (path: string, manager: any, onComplete: (obj: any) => void) => {
-    // For now, create default geometry if no mesh file is provided
-    // This allows URDF files without external meshes to still visualize
-    const geometry = new THREE.BoxGeometry(0.1, 0.1, 0.1)
-    const material = new THREE.MeshPhongMaterial({ color: 0xcccccc })
-    const mesh = new THREE.Mesh(geometry, material)
-    onComplete(mesh)
+  // Configure package path for resolving package:// URLs
+  if (packagePath) {
+    // Set packages to resolve package:// URLs to the provided base path
+    // Note: Currently all packages resolve to the same base path
+    // This works for URDFs where all meshes are in the same repository
+    // For URDFs with multiple package references, a package mapping would be needed
+    loader.packages = (packageName: string) => {
+      return packagePath
+    }
   }
 
-  // Parse the URDF content
-  robot = loader.parse(content)
+  // Wrap the default mesh loader to add logging while preserving default behavior
+  // Store reference to the default loadMeshCb (which handles STL and DAE)
+  const defaultLoadMeshCb = (loader as any).loadMeshCb
   
-  // Add robot to scene
-  scene.add(robot)
+  if (defaultLoadMeshCb) {
+    // Override with a wrapper that logs but calls the default implementation
+    loader.loadMeshCb = (path: string, manager: any, onComplete: (mesh: any) => void) => {
+      console.log(`[Mesh Loader] Attempting to load mesh: ${path}`)
+      
+      // Call the default loader with wrapped callbacks to add logging
+      defaultLoadMeshCb.call(loader, path, manager, (mesh: any) => {
+        if (mesh) {
+          console.log(`[Mesh Loader] Successfully loaded mesh: ${path}`)
+        } else {
+          console.warn(`[Mesh Loader] Failed to load mesh: ${path}`)
+        }
+        onComplete(mesh)
+      })
+    }
+  } else {
+    console.warn('[Mesh Loader] No default mesh loader found - mesh loading may not work correctly')
+  }
 
-  // Convert to node structure for hierarchy display
-  const robotNode = convertURDFToNodeStructure(robot)
+  // Check if this is a URL or content string
+  const isUrl = contentOrUrl.startsWith('http://') || contentOrUrl.startsWith('https://')
   
-  // Emit the loaded robot structure
-  emit('urdf-loaded', robotNode)
+  if (isUrl) {
+    // Use loader.load() for URLs - it handles fetching and mesh loading better
+    loader.load(
+      contentOrUrl,
+      (loadedRobot) => {
+        robot = loadedRobot
+        scene.add(robot)
+        
+        // Convert to node structure for hierarchy display
+        const robotNode = convertURDFToNodeStructure(robot)
+        
+        // Emit the loaded robot structure
+        emit('urdf-loaded', robotNode)
+      },
+      undefined,
+      (error) => {
+        console.error('Error loading URDF:', error)
+        alert(`Failed to load URDF: ${error}`)
+      }
+    )
+  } else {
+    // Use loader.parse() for content strings
+    robot = loader.parse(contentOrUrl)
+    
+    // Add robot to scene
+    scene.add(robot)
+
+    // Convert to node structure for hierarchy display
+    const robotNode = convertURDFToNodeStructure(robot)
+    
+    // Emit the loaded robot structure
+    emit('urdf-loaded', robotNode)
+  }
 }
 
 // Expose loadURDFContent to parent component

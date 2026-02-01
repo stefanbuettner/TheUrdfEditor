@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { ref, onMounted, onBeforeUnmount } from 'vue'
+import { ref, onMounted, onBeforeUnmount, watch } from 'vue'
 import HierarchyPanel from './components/HierarchyPanel.vue'
 import ThreeViewer from './components/ThreeViewer.vue'
 import PropertiesPanel from './components/PropertiesPanel.vue'
+import ConsolePanel from './components/ConsolePanel.vue'
 import type { URDFNode } from './types/urdf'
 
 const selectedNode = ref<URDFNode | null>(null)
@@ -10,7 +11,19 @@ const urdfRoot = ref<URDFNode | null>(null)
 const showUploadMenu = ref(false)
 const showUrlDialog = ref(false)
 const urlInput = ref('')
+const packagePathInput = ref('')
 const threeViewerRef = ref<InstanceType<typeof ThreeViewer> | null>(null)
+
+// Auto-populate package path when URL changes
+watch(urlInput, (newUrl) => {
+  if (newUrl && !packagePathInput.value) {
+    // Extract the folder path from the URL
+    const lastSlashIndex = newUrl.lastIndexOf('/')
+    if (lastSlashIndex !== -1) {
+      packagePathInput.value = newUrl.substring(0, lastSlashIndex + 1)
+    }
+  }
+})
 
 const handleNodeSelect = (node: URDFNode) => {
   // Toggle selection: if clicking the same node, deselect it
@@ -67,35 +80,41 @@ const handleUploadFromUrl = () => {
 
 const cancelUrlDialog = () => {
   showUrlDialog.value = false
+  clearUrlInputs()
+}
+
+const clearUrlInputs = () => {
   urlInput.value = ''
+  packagePathInput.value = ''
 }
 
 const loadFromUrl = async () => {
   if (!urlInput.value.trim()) return
   
   try {
-    const response = await fetch(urlInput.value)
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`)
+    // Determine package path: use provided value or default to URDF's folder
+    let packagePath = packagePathInput.value.trim()
+    if (!packagePath) {
+      // Default to the URDF's folder (everything before the filename)
+      packagePath = urlInput.value.substring(0, urlInput.value.lastIndexOf('/') + 1)
     }
-    const content = await response.text()
     
     // Extract filename from URL
     const urlParts = urlInput.value.split('/')
     const filename = urlParts[urlParts.length - 1] || 'loaded_from_url.urdf'
     
-    // Load URDF content
+    // Pass URL directly to ThreeViewer - loader.load() will handle fetching and mesh loading
     if (threeViewerRef.value) {
-      threeViewerRef.value.loadURDFContent(content, filename)
+      threeViewerRef.value.loadURDFContent(urlInput.value, filename, packagePath)
     }
     
     showUrlDialog.value = false
-    urlInput.value = ''
+    clearUrlInputs()
   } catch (error) {
     console.error('Error loading URDF from URL:', error)
     alert(`Failed to load URDF from URL: ${error}`)
     showUrlDialog.value = false
-    urlInput.value = ''
+    clearUrlInputs()
   }
 }
 
@@ -108,7 +127,8 @@ const handleUpload = (event: Event) => {
       const content = e.target?.result as string
       if (threeViewerRef.value) {
         try {
-          threeViewerRef.value.loadURDFContent(content, file.name)
+          // For local files, no package path is provided
+          threeViewerRef.value.loadURDFContent(content, file.name, '')
         } catch (error) {
           console.error('Error loading URDF:', error)
           alert(`Failed to load URDF: ${error}`)
@@ -262,12 +282,26 @@ const generateNodeXML = (node: URDFNode, indent: number): string => {
           class="url-input"
           @keyup.enter="loadFromUrl"
         />
+        <input 
+          v-model="packagePathInput" 
+          type="text" 
+          placeholder="Package path URL (optional - defaults to URDF folder)"
+          class="url-input"
+          @keyup.enter="loadFromUrl"
+        />
+        <div class="modal-help-text">
+          Package path is used to resolve package:// mesh references.
+          Leave empty to use the URDF's folder as the default.
+        </div>
         <div class="modal-actions">
           <button class="btn btn-secondary" @click="cancelUrlDialog">Cancel</button>
           <button class="btn" @click="loadFromUrl">Load</button>
         </div>
       </div>
     </div>
+
+    <!-- Console Panel -->
+    <ConsolePanel />
   </div>
 </template>
 
@@ -433,6 +467,13 @@ const generateNodeXML = (node: URDFNode, indent: number): string => {
 .url-input:focus {
   outline: none;
   border-color: #42b983;
+}
+
+.modal-help-text {
+  font-size: 0.75rem;
+  color: #666;
+  margin-bottom: 1rem;
+  line-height: 1.4;
 }
 
 .modal-actions {
