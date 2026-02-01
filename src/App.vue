@@ -80,16 +80,6 @@ const loadFromUrl = async () => {
   if (!urlInput.value.trim()) return
   
   try {
-    const response = await fetch(urlInput.value)
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`)
-    }
-    const content = await response.text()
-    
-    // Extract filename from URL
-    const urlParts = urlInput.value.split('/')
-    const filename = urlParts[urlParts.length - 1] || 'loaded_from_url.urdf'
-    
     // Determine package path: use provided value or default to URDF's folder
     let packagePath = packagePathInput.value.trim()
     if (!packagePath) {
@@ -97,9 +87,13 @@ const loadFromUrl = async () => {
       packagePath = urlInput.value.substring(0, urlInput.value.lastIndexOf('/') + 1)
     }
     
-    // Load URDF content with package path
+    // Extract filename from URL
+    const urlParts = urlInput.value.split('/')
+    const filename = urlParts[urlParts.length - 1] || 'loaded_from_url.urdf'
+    
+    // Pass URL directly to ThreeViewer - loader.load() will handle fetching and mesh loading
     if (threeViewerRef.value) {
-      threeViewerRef.value.loadURDFContent(content, filename, packagePath)
+      threeViewerRef.value.loadURDFContent(urlInput.value, filename, packagePath)
     }
     
     showUrlDialog.value = false

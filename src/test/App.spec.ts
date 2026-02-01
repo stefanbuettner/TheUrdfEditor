@@ -70,8 +70,13 @@ describe('App.vue - URDF Upload/Download', () => {
       global: {
         stubs: {
           ThreeViewer: {
+            name: 'ThreeViewer',
             template: '<div class="three-viewer-stub"></div>',
-            emits: ['urdf-loaded']
+            emits: ['urdf-loaded'],
+            setup() {
+              const loadURDFContent = vi.fn()
+              return { loadURDFContent }
+            }
           }
         }
       }
@@ -287,7 +292,7 @@ describe('App.vue - URDF Upload/Download', () => {
 
   describe('URL Loading', () => {
     it('should load URDF from URL successfully', async () => {
-      // Mock fetch API
+      // Mock fetch API (not actually used anymore since we pass URL directly)
       const mockUrdfContent = `<?xml version="1.0"?>
 <robot name="url_robot">
   <link name="base_link">
@@ -300,30 +305,28 @@ describe('App.vue - URDF Upload/Download', () => {
         text: async () => mockUrdfContent
       } as Response)
 
-      // Mock the ThreeViewer ref
-      const mockLoadURDFContent = vi.fn()
-      wrapper.vm.threeViewerRef = {
-        loadURDFContent: mockLoadURDFContent
-      }
+      // Get the Three Viewer stub component to access its mock
+      const threeViewerComponent = wrapper.findComponent({ name: 'ThreeViewer' })
+      const mockLoadURDFContent = (threeViewerComponent.vm as any).loadURDFContent
 
       // Set URL and load
       wrapper.vm.urlInput = 'https://example.com/robot.urdf'
       await wrapper.vm.loadFromUrl()
       await nextTick()
 
-      // Verify fetch was called with correct URL
-      expect(global.fetch).toHaveBeenCalledWith('https://example.com/robot.urdf')
-      
-      // Verify loadURDFContent was called with the content and package path
-      expect(mockLoadURDFContent).toHaveBeenCalledWith(mockUrdfContent, 'robot.urdf', 'https://example.com/')
+      // Verify loadURDFContent was called with URL (not content), filename, and package path
+      // loader.load() will handle fetching internally
+      expect(mockLoadURDFContent).toHaveBeenCalledWith('https://example.com/robot.urdf', 'robot.urdf', 'https://example.com/')
     })
 
     it('should handle fetch errors gracefully', async () => {
-      // Mock fetch to fail
-      global.fetch = vi.fn().mockRejectedValue(new Error('Network error'))
-
-      // Reset alert mock
-      vi.mocked(global.alert).mockClear()
+      // Note: With loader.load(), errors are handled internally by the loader
+      // and passed to the error callback in ThreeViewer
+      // This test verifies that the dialog closes even if there's an issue
+      
+      // Get the Three Viewer stub component to access its mock
+      const threeViewerComponent = wrapper.findComponent({ name: 'ThreeViewer' })
+      const mockLoadURDFContent = (threeViewerComponent.vm as any).loadURDFContent
 
       // Set URL
       wrapper.vm.showUrlDialog = true
@@ -334,21 +337,18 @@ describe('App.vue - URDF Upload/Download', () => {
       await wrapper.vm.loadFromUrl()
       await nextTick()
 
-      // Verify error was handled
-      expect(global.alert).toHaveBeenCalledWith(expect.stringContaining('Failed to load URDF from URL'))
+      // Verify the URL was passed to the loader
+      expect(mockLoadURDFContent).toHaveBeenCalledWith('https://example.com/invalid.urdf', 'invalid.urdf', 'https://example.com/')
       expect(wrapper.vm.showUrlDialog).toBe(false)
     })
 
     it('should handle HTTP errors (404, 500, etc)', async () => {
-      // Mock fetch to return error status
-      global.fetch = vi.fn().mockResolvedValue({
-        ok: false,
-        status: 404,
-        text: async () => 'Not Found'
-      } as Response)
-
-      // Reset alert mock
-      vi.mocked(global.alert).mockClear()
+      // Note: With loader.load(), HTTP errors are handled internally by the loader
+      // This test verifies the URL is passed correctly
+      
+      // Get the Three Viewer stub component to access its mock
+      const threeViewerComponent = wrapper.findComponent({ name: 'ThreeViewer' })
+      const mockLoadURDFContent = (threeViewerComponent.vm as any).loadURDFContent
 
       // Set URL
       wrapper.vm.showUrlDialog = true
@@ -359,8 +359,9 @@ describe('App.vue - URDF Upload/Download', () => {
       await wrapper.vm.loadFromUrl()
       await nextTick()
 
-      // Verify error was handled
-      expect(global.alert).toHaveBeenCalledWith(expect.stringContaining('Failed to load URDF from URL'))
+      // Verify the URL was passed to the loader
+      expect(mockLoadURDFContent).toHaveBeenCalledWith('https://example.com/notfound.urdf', 'notfound.urdf', 'https://example.com/')
+      expect(wrapper.vm.showUrlDialog).toBe(false)
     })
 
     it('should load red box URDF fixture', async () => {
@@ -377,19 +378,17 @@ describe('App.vue - URDF Upload/Download', () => {
         text: async () => redBoxContent
       } as Response)
 
-      // Mock the ThreeViewer ref
-      const mockLoadURDFContent = vi.fn()
-      wrapper.vm.threeViewerRef = {
-        loadURDFContent: mockLoadURDFContent
-      }
+      // Get the Three Viewer stub component to access its mock
+      const threeViewerComponent = wrapper.findComponent({ name: 'ThreeViewer' })
+      const mockLoadURDFContent = (threeViewerComponent.vm as any).loadURDFContent
 
       // Set URL and load
       wrapper.vm.urlInput = 'https://example.com/red_box.urdf'
       await wrapper.vm.loadFromUrl()
       await nextTick()
 
-      // Verify content was loaded with package path
-      expect(mockLoadURDFContent).toHaveBeenCalledWith(redBoxContent, 'red_box.urdf', 'https://example.com/')
+      // Verify URL was passed directly (not content)
+      expect(mockLoadURDFContent).toHaveBeenCalledWith('https://example.com/red_box.urdf', 'red_box.urdf', 'https://example.com/')
       
       // Verify red box properties
       expect(redBoxContent).toContain('red_box_robot')
@@ -412,19 +411,17 @@ describe('App.vue - URDF Upload/Download', () => {
         text: async () => sampleContent
       } as Response)
 
-      // Mock the ThreeViewer ref
-      const mockLoadURDFContent = vi.fn()
-      wrapper.vm.threeViewerRef = {
-        loadURDFContent: mockLoadURDFContent
-      }
+      // Get the Three Viewer stub component to access its mock
+      const threeViewerComponent = wrapper.findComponent({ name: 'ThreeViewer' })
+      const mockLoadURDFContent = (threeViewerComponent.vm as any).loadURDFContent
 
       // Set URL and load
       wrapper.vm.urlInput = 'https://raw.githubusercontent.com/openrr/urdf-viz/refs/heads/main/sample.urdf'
       await wrapper.vm.loadFromUrl()
       await nextTick()
 
-      // Verify content was loaded with package path
-      expect(mockLoadURDFContent).toHaveBeenCalledWith(sampleContent, 'sample.urdf', 'https://raw.githubusercontent.com/openrr/urdf-viz/refs/heads/main/')
+      // Verify URL was passed directly (not content)
+      expect(mockLoadURDFContent).toHaveBeenCalledWith('https://raw.githubusercontent.com/openrr/urdf-viz/refs/heads/main/sample.urdf', 'sample.urdf', 'https://raw.githubusercontent.com/openrr/urdf-viz/refs/heads/main/')
       
       // Verify sample URDF properties
       expect(sampleContent).toContain('<robot name="robot">')

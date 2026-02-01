@@ -309,7 +309,7 @@ const createFallbackBillboard = (): THREE.Object3D => {
   return sprite
 }
 
-const loadURDFContent = (content: string, filename: string, packagePath: string = '') => {
+const loadURDFContent = (contentOrUrl: string, filename: string, packagePath: string = '') => {
   // Clear existing robot from scene
   if (robot) {
     scene.remove(robot)
@@ -330,7 +330,7 @@ const loadURDFContent = (content: string, filename: string, packagePath: string 
     }
   }
   
-  // Configure comprehensive mesh loader
+  // Configure fallback mesh loader for unsupported formats or errors
   loader.loadMeshCb = (path: string, manager: any, onComplete: (obj: any) => void) => {
     // Determine file extension
     const extension = path.split('.').pop()?.toLowerCase()
@@ -343,21 +343,10 @@ const loadURDFContent = (content: string, filename: string, packagePath: string 
       onComplete(createFallbackBillboard())
     }
     
+    // Let urdf-loader handle STL and DAE with default loaders
+    // Only handle additional formats or provide fallback
     try {
       switch (extension) {
-        case 'stl':
-          new STLLoader(manager).load(
-            path,
-            (geometry) => {
-              const material = new THREE.MeshPhongMaterial({ color: 0xcccccc })
-              const mesh = new THREE.Mesh(geometry, material)
-              onComplete(mesh)
-            },
-            undefined,
-            onError
-          )
-          break
-          
         case 'obj':
           new OBJLoader(manager).load(
             path,
@@ -379,17 +368,6 @@ const loadURDFContent = (content: string, filename: string, packagePath: string 
           )
           break
           
-        case 'dae':
-          new ColladaLoader(manager).load(
-            path,
-            (collada) => {
-              onComplete(collada.scene)
-            },
-            undefined,
-            onError
-          )
-          break
-          
         case 'ply':
           new PLYLoader(manager).load(
             path,
@@ -401,6 +379,15 @@ const loadURDFContent = (content: string, filename: string, packagePath: string 
             undefined,
             onError
           )
+          break
+        
+        case 'stl':
+        case 'dae':
+          // Let urdf-loader's default mesh loader handle these
+          // If we reach here, the default loader should have been called
+          // Fall through to default handler which will create fallback
+          console.warn(`Unexpected: STL/DAE should be handled by default loader`)
+          onComplete(createFallbackBillboard())
           break
           
         default:
@@ -414,17 +401,42 @@ const loadURDFContent = (content: string, filename: string, packagePath: string 
     }
   }
 
-  // Parse the URDF content
-  robot = loader.parse(content)
+  // Check if this is a URL or content string
+  const isUrl = contentOrUrl.startsWith('http://') || contentOrUrl.startsWith('https://')
   
-  // Add robot to scene
-  scene.add(robot)
+  if (isUrl) {
+    // Use loader.load() for URLs - it handles fetching and mesh loading better
+    loader.load(
+      contentOrUrl,
+      (loadedRobot) => {
+        robot = loadedRobot
+        scene.add(robot)
+        
+        // Convert to node structure for hierarchy display
+        const robotNode = convertURDFToNodeStructure(robot)
+        
+        // Emit the loaded robot structure
+        emit('urdf-loaded', robotNode)
+      },
+      undefined,
+      (error) => {
+        console.error('Error loading URDF:', error)
+        alert(`Failed to load URDF: ${error}`)
+      }
+    )
+  } else {
+    // Use loader.parse() for content strings
+    robot = loader.parse(contentOrUrl)
+    
+    // Add robot to scene
+    scene.add(robot)
 
-  // Convert to node structure for hierarchy display
-  const robotNode = convertURDFToNodeStructure(robot)
-  
-  // Emit the loaded robot structure
-  emit('urdf-loaded', robotNode)
+    // Convert to node structure for hierarchy display
+    const robotNode = convertURDFToNodeStructure(robot)
+    
+    // Emit the loaded robot structure
+    emit('urdf-loaded', robotNode)
+  }
 }
 
 // Expose loadURDFContent to parent component
