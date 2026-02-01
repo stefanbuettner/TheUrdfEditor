@@ -2,10 +2,6 @@
 import { ref, onMounted, onBeforeUnmount, watch } from 'vue'
 import * as THREE from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
-import { STLLoader } from 'three/examples/jsm/loaders/STLLoader.js'
-import { OBJLoader } from 'three/examples/jsm/loaders/OBJLoader.js'
-import { ColladaLoader } from 'three/examples/jsm/loaders/ColladaLoader.js'
-import { PLYLoader } from 'three/examples/jsm/loaders/PLYLoader.js'
 import URDFLoader from 'urdf-loader'
 import type { URDFNode } from '../types/urdf'
 
@@ -281,34 +277,6 @@ const convertURDFToNodeStructure = (urdfRobot: any): URDFNode => {
   return convert(urdfRobot)
 }
 
-const createFallbackBillboard = (): THREE.Object3D => {
-  // Create a red exclamation mark billboard for missing meshes
-  const canvas = document.createElement('canvas')
-  canvas.width = 128
-  canvas.height = 128
-  const context = canvas.getContext('2d')
-  
-  if (context) {
-    // Red background
-    context.fillStyle = '#ff0000'
-    context.fillRect(0, 0, 128, 128)
-    
-    // White exclamation mark
-    context.fillStyle = '#ffffff'
-    context.font = 'bold 100px Arial'
-    context.textAlign = 'center'
-    context.textBaseline = 'middle'
-    context.fillText('!', 64, 64)
-  }
-  
-  const texture = new THREE.CanvasTexture(canvas)
-  const material = new THREE.SpriteMaterial({ map: texture })
-  const sprite = new THREE.Sprite(material)
-  sprite.scale.set(0.5, 0.5, 0.5)
-  
-  return sprite
-}
-
 const loadURDFContent = (contentOrUrl: string, filename: string, packagePath: string = '') => {
   // Clear existing robot from scene
   if (robot) {
@@ -327,77 +295,6 @@ const loadURDFContent = (contentOrUrl: string, filename: string, packagePath: st
     // For URDFs with multiple package references, a package mapping would be needed
     loader.packages = (packageName: string) => {
       return packagePath
-    }
-  }
-  
-  // Configure fallback mesh loader for unsupported formats or errors
-  loader.loadMeshCb = (path: string, manager: any, onComplete: (obj: any) => void) => {
-    // Determine file extension
-    const extension = path.split('.').pop()?.toLowerCase()
-    
-    console.log(`Loading mesh: ${path} (${extension})`)
-    
-    const onError = (error: any) => {
-      console.warn(`Failed to load mesh ${path}:`, error)
-      // Return fallback billboard on error
-      onComplete(createFallbackBillboard())
-    }
-    
-    // Let urdf-loader handle STL and DAE with default loaders
-    // Only handle additional formats or provide fallback
-    try {
-      switch (extension) {
-        case 'obj':
-          new OBJLoader(manager).load(
-            path,
-            (obj) => {
-              // Apply default material only to meshes without materials
-              obj.traverse((child) => {
-                if ((child as THREE.Mesh).isMesh) {
-                  const mesh = child as THREE.Mesh
-                  // Only apply default material if no material exists
-                  if (!mesh.material || (Array.isArray(mesh.material) && mesh.material.length === 0)) {
-                    mesh.material = new THREE.MeshPhongMaterial({ color: 0xcccccc })
-                  }
-                }
-              })
-              onComplete(obj)
-            },
-            undefined,
-            onError
-          )
-          break
-          
-        case 'ply':
-          new PLYLoader(manager).load(
-            path,
-            (geometry) => {
-              const material = new THREE.MeshPhongMaterial({ color: 0xcccccc })
-              const mesh = new THREE.Mesh(geometry, material)
-              onComplete(mesh)
-            },
-            undefined,
-            onError
-          )
-          break
-        
-        case 'stl':
-        case 'dae':
-          // Let urdf-loader's default mesh loader handle these
-          // If we reach here, the default loader should have been called
-          // Fall through to default handler which will create fallback
-          console.warn(`Unexpected: STL/DAE should be handled by default loader`)
-          onComplete(createFallbackBillboard())
-          break
-          
-        default:
-          console.warn(`Unsupported mesh format: ${extension}`)
-          onComplete(createFallbackBillboard())
-          break
-      }
-    } catch (error) {
-      console.error(`Error loading mesh ${path}:`, error)
-      onComplete(createFallbackBillboard())
     }
   }
 
