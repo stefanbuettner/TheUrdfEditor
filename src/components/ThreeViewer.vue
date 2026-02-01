@@ -298,9 +298,26 @@ const loadURDFContent = (contentOrUrl: string, filename: string, packagePath: st
     }
   }
 
-  // Note: We let urdf-loader use its default mesh loading which supports
-  // STL and DAE formats automatically. Custom loadMeshCb can be added later
-  // if additional formats need to be supported.
+  // Wrap the default mesh loader to add logging while preserving default behavior
+  // Store reference to the default loadMeshCb (which handles STL and DAE)
+  const defaultLoadMeshCb = (loader as any).loadMeshCb
+  
+  if (defaultLoadMeshCb) {
+    // Override with a wrapper that logs but calls the default implementation
+    loader.loadMeshCb = (path: string, manager: any, onComplete: (mesh: any) => void) => {
+      console.log(`Attempting to load mesh: ${path}`)
+      
+      // Call the default loader with wrapped callbacks to add logging
+      defaultLoadMeshCb.call(loader, path, manager, (mesh: any) => {
+        if (mesh) {
+          console.log(`Successfully loaded mesh: ${path}`)
+        } else {
+          console.warn(`Failed to load mesh: ${path}`)
+        }
+        onComplete(mesh)
+      })
+    }
+  }
 
   // Check if this is a URL or content string
   const isUrl = contentOrUrl.startsWith('http://') || contentOrUrl.startsWith('https://')
