@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, onBeforeUnmount } from 'vue'
+import { ref, onMounted, onBeforeUnmount, watch } from 'vue'
 import HierarchyPanel from './components/HierarchyPanel.vue'
 import ThreeViewer from './components/ThreeViewer.vue'
 import PropertiesPanel from './components/PropertiesPanel.vue'
@@ -13,6 +13,17 @@ const showUrlDialog = ref(false)
 const urlInput = ref('')
 const packagePathInput = ref('')
 const threeViewerRef = ref<InstanceType<typeof ThreeViewer> | null>(null)
+
+// Auto-populate package path when URL changes
+watch(urlInput, (newUrl) => {
+  if (newUrl && !packagePathInput.value) {
+    // Extract the folder path from the URL
+    const lastSlashIndex = newUrl.lastIndexOf('/')
+    if (lastSlashIndex !== -1) {
+      packagePathInput.value = newUrl.substring(0, lastSlashIndex + 1)
+    }
+  }
+})
 
 const handleNodeSelect = (node: URDFNode) => {
   // Toggle selection: if clicking the same node, deselect it
