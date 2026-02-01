@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import * as THREE from 'three'
 import type { URDFNode } from '../types/urdf'
 
@@ -10,6 +10,7 @@ interface Props {
 const props = defineProps<Props>()
 
 const hasNode = computed(() => props.node !== null)
+const collisionExpanded = ref(true)
 
 const properties = computed(() => {
   if (!props.node) return []
@@ -53,10 +54,10 @@ const properties = computed(() => {
     }
   }
   
-  // Add other properties (excluding position and rotation which we handled above)
+  // Add other properties (excluding position, rotation, and collisionGeometry which we handle separately)
   if (props.node.properties) {
     for (const [key, value] of Object.entries(props.node.properties)) {
-      if (key !== 'position' && key !== 'rotation') {
+      if (key !== 'position' && key !== 'rotation' && key !== 'collisionGeometry') {
         props_list.push({ 
           key: key.charAt(0).toUpperCase() + key.slice(1), 
           value: typeof value === 'object' ? JSON.stringify(value, null, 2) : String(value)
@@ -67,6 +68,13 @@ const properties = computed(() => {
   
   return props_list
 })
+
+const collisionGeometry = computed(() => {
+  if (!props.node || !props.node.properties) return []
+  return props.node.properties.collisionGeometry || []
+})
+
+const hasCollisionGeometry = computed(() => collisionGeometry.value.length > 0)
 </script>
 
 <template>
@@ -79,14 +87,34 @@ const properties = computed(() => {
         <p>No component selected</p>
         <p class="hint">Select a component from the hierarchy to view its properties</p>
       </div>
-      <div v-else class="properties-list">
-        <div
-          v-for="prop in properties"
-          :key="prop.key"
-          class="property-item"
-        >
-          <div class="property-key">{{ prop.key }}</div>
-          <div class="property-value">{{ prop.value }}</div>
+      <div v-else class="properties-container">
+        <div class="properties-list">
+          <div
+            v-for="prop in properties"
+            :key="prop.key"
+            class="property-item"
+          >
+            <div class="property-key">{{ prop.key }}</div>
+            <div class="property-value">{{ prop.value }}</div>
+          </div>
+        </div>
+        
+        <!-- Collision Geometry Section -->
+        <div v-if="hasCollisionGeometry" class="collision-section">
+          <div class="collision-header" @click="collisionExpanded = !collisionExpanded">
+            <span class="collapse-icon">{{ collisionExpanded ? '▼' : '▶' }}</span>
+            <h3>Collision Geometry</h3>
+            <span class="collision-count">({{ collisionGeometry.length }})</span>
+          </div>
+          <div v-if="collisionExpanded" class="collision-list">
+            <div
+              v-for="(collision, index) in collisionGeometry"
+              :key="index"
+              class="collision-item"
+            >
+              <div class="collision-name">{{ collision.name }}</div>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -136,6 +164,12 @@ const properties = computed(() => {
   font-size: 0.875rem;
 }
 
+.properties-container {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
 .properties-list {
   display: flex;
   flex-direction: column;
@@ -165,5 +199,67 @@ const properties = computed(() => {
   background-color: #f8f8f8;
   padding: 0.5rem;
   border-radius: 3px;
+}
+
+/* Collision Geometry Section */
+.collision-section {
+  background-color: white;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.collision-header {
+  display: flex;
+  align-items: center;
+  padding: 0.75rem;
+  background-color: #f8f8f8;
+  cursor: pointer;
+  user-select: none;
+  border-bottom: 1px solid #ddd;
+}
+
+.collision-header:hover {
+  background-color: #efefef;
+}
+
+.collapse-icon {
+  margin-right: 0.5rem;
+  font-size: 0.75rem;
+  color: #555;
+}
+
+.collision-header h3 {
+  margin: 0;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #2c3e50;
+  flex: 1;
+}
+
+.collision-count {
+  font-size: 0.75rem;
+  color: #7f8c8d;
+  margin-left: 0.5rem;
+}
+
+.collision-list {
+  padding: 0.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.collision-item {
+  padding: 0.5rem;
+  background-color: #fffbf0;
+  border: 1px solid #ffbe38;
+  border-radius: 3px;
+}
+
+.collision-name {
+  font-size: 0.875rem;
+  color: #2c3e50;
+  font-family: 'Courier New', monospace;
 }
 </style>

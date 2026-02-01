@@ -175,6 +175,23 @@ const clearHighlighting = () => {
   outlineObjects = []
 }
 
+const applyCollisionMaterials = (object: any) => {
+  // Apply yellow semi-transparent material to all collision geometry
+  object.traverse((child: any) => {
+    if (child.isURDFCollider && child.isMesh) {
+      // Create yellow semi-transparent material for collision geometry
+      child.material = new THREE.MeshPhongMaterial({
+        color: 0xffbe38,  // Yellow color similar to urdf-viewer-element
+        transparent: true,
+        opacity: 0.35,
+        shininess: 2.5,
+        premultipliedAlpha: true
+      })
+      child.visible = true  // Make sure collision geometry is visible
+    }
+  })
+}
+
 const highlightNode = (node: URDFNode | null) => {
   clearHighlighting()
 
@@ -254,6 +271,24 @@ const convertURDFToNodeStructure = (urdfRobot: any): URDFNode => {
       }
     }
 
+    // Add collision geometry information for links
+    if (obj.isURDFLink || obj.isURDFRobot) {
+      // Find collision geometry children
+      const collisionGeometry: any[] = []
+      obj.traverse((child: any) => {
+        if (child.isURDFCollider && child !== obj) {
+          collisionGeometry.push({
+            name: child.urdfName || child.name || 'unnamed_collision',
+            visible: child.visible
+          })
+        }
+      })
+      
+      if (collisionGeometry.length > 0) {
+        node.properties!.collisionGeometry = collisionGeometry
+      }
+    }
+
     // Add link/visual properties
     if (obj.position) {
       node.properties!.position = [obj.position.x, obj.position.y, obj.position.z]
@@ -286,6 +321,9 @@ const loadURDFContent = (contentOrUrl: string, filename: string, packagePath: st
 
   // Use urdf-loader to load and visualize the URDF
   const loader = new URDFLoader()
+  
+  // Enable collision geometry parsing
+  loader.parseCollision = true
   
   // Configure package path for resolving package:// URLs
   if (packagePath) {
@@ -332,6 +370,9 @@ const loadURDFContent = (contentOrUrl: string, filename: string, packagePath: st
         robot = loadedRobot
         scene.add(robot)
         
+        // Apply collision materials
+        applyCollisionMaterials(robot)
+        
         // Convert to node structure for hierarchy display
         const robotNode = convertURDFToNodeStructure(robot)
         
@@ -350,6 +391,9 @@ const loadURDFContent = (contentOrUrl: string, filename: string, packagePath: st
     
     // Add robot to scene
     scene.add(robot)
+    
+    // Apply collision materials
+    applyCollisionMaterials(robot)
 
     // Convert to node structure for hierarchy display
     const robotNode = convertURDFToNodeStructure(robot)
