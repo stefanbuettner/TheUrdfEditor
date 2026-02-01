@@ -197,11 +197,9 @@ const applyCollisionMaterials = (object: any) => {
           if (mesh.material && mesh.material !== collisionMaterial && mesh.material.dispose) {
             mesh.material.dispose()
           }
-          // Clone the material to ensure proper application
-          mesh.material = collisionMaterial.clone()
+          // Reuse the shared collision material for efficiency
+          mesh.material = collisionMaterial
           mesh.visible = true
-          // Force material update
-          mesh.material.needsUpdate = true
         }
       })
     }
