@@ -177,17 +177,26 @@ const clearHighlighting = () => {
 
 const applyCollisionMaterials = (object: any) => {
   // Apply yellow semi-transparent material to all collision geometry
+  const collisionMaterial = new THREE.MeshPhongMaterial({
+    color: 0xffbe38,  // Yellow color similar to urdf-viewer-element
+    transparent: true,
+    opacity: 0.35,
+    shininess: 2.5,
+    premultipliedAlpha: true
+  })
+  
   object.traverse((child: any) => {
-    if (child.isURDFCollider && child.isMesh) {
-      // Create yellow semi-transparent material for collision geometry
-      child.material = new THREE.MeshPhongMaterial({
-        color: 0xffbe38,  // Yellow color similar to urdf-viewer-element
-        transparent: true,
-        opacity: 0.35,
-        shininess: 2.5,
-        premultipliedAlpha: true
+    if (child.isURDFCollider) {
+      // Make the collider and all its children visible
+      child.visible = true
+      
+      // Traverse the collider to find all meshes and apply material
+      child.traverse((mesh: any) => {
+        if (mesh.isMesh) {
+          mesh.material = collisionMaterial
+          mesh.visible = true
+        }
       })
-      child.visible = true  // Make sure collision geometry is visible
     }
   })
 }
