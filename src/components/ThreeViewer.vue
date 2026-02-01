@@ -32,6 +32,15 @@ let mouseDownPos: { x: number; y: number } | null = null
 // Threshold for distinguishing clicks from drags (in pixels)
 const DRAG_THRESHOLD_PIXELS = 5
 
+// Reusable collision material to avoid creating new materials on each load
+const collisionMaterial = new THREE.MeshPhongMaterial({
+  color: 0xffbe38,  // Yellow color similar to urdf-viewer-element
+  transparent: true,
+  opacity: 0.35,
+  shininess: 2.5,
+  premultipliedAlpha: true
+})
+
 const initThreeJS = () => {
   if (!canvasContainer.value) return
 
@@ -177,14 +186,6 @@ const clearHighlighting = () => {
 
 const applyCollisionMaterials = (object: any) => {
   // Apply yellow semi-transparent material to all collision geometry
-  const collisionMaterial = new THREE.MeshPhongMaterial({
-    color: 0xffbe38,  // Yellow color similar to urdf-viewer-element
-    transparent: true,
-    opacity: 0.35,
-    shininess: 2.5,
-    premultipliedAlpha: true
-  })
-  
   object.traverse((child: any) => {
     if (child.isURDFCollider) {
       // Make the collider and all its children visible
@@ -193,6 +194,10 @@ const applyCollisionMaterials = (object: any) => {
       // Traverse the collider to find all meshes and apply material
       child.traverse((mesh: any) => {
         if (mesh.isMesh) {
+          // Dispose of old material if it exists and is not shared
+          if (mesh.material && mesh.material !== collisionMaterial && mesh.material.dispose) {
+            mesh.material.dispose()
+          }
           mesh.material = collisionMaterial
           mesh.visible = true
         }
