@@ -265,8 +265,31 @@ const highlightNode = (node: URDFNode | null) => {
   
   const meshes = findMeshesInNode(obj3D)
   
-  // Create outlines for all found meshes
+  // Create outlines for all found meshes, but only if their component type is visible
   meshes.forEach((mesh: any) => {
+    // Check if this mesh should be highlighted based on visibility controls
+    // Priority order: collision > sensor > joint > link
+    let shouldHighlight = false
+    
+    if (mesh.userData?.isCollisionMesh) {
+      // Collision meshes are only controlled by collision visibility
+      shouldHighlight = visibilityControls.collisions
+    } else if (mesh.userData?.isSensor) {
+      // Sensor meshes are only controlled by sensor visibility
+      shouldHighlight = visibilityControls.sensors
+    } else if (mesh.userData?.isJointMesh) {
+      // Joint meshes are only controlled by joint visibility
+      shouldHighlight = visibilityControls.joints
+    } else if (mesh.userData?.isLinkMesh) {
+      // Link meshes are only controlled by link visibility
+      shouldHighlight = visibilityControls.links
+    }
+    
+    // Only create outline if the mesh should be highlighted
+    if (!shouldHighlight) {
+      return
+    }
+    
     const edges = new THREE.EdgesGeometry(mesh.geometry)
     const lineMaterial = new THREE.LineBasicMaterial({ 
       color: 0x00ff00
@@ -287,6 +310,12 @@ const highlightNode = (node: URDFNode | null) => {
 watch(() => props.selectedNode, (newNode) => {
   highlightNode(newNode ?? null)
 })
+
+// Watch for visibility control changes and re-highlight the current selection
+watch(() => ({ ...visibilityControls }), () => {
+  // Re-highlight the currently selected node to reflect visibility changes
+  highlightNode(props.selectedNode ?? null)
+}, { deep: true })
 
 // Visibility control methods
 const setComponentVisibility = (componentType: keyof typeof visibilityControls, visible: boolean) => {
@@ -372,29 +401,31 @@ const classifyURDFObjects = (robot: any) => {
     }
     child.userData.isCollisionMesh = isCollisionMesh
     
-    // Check if this mesh belongs to a link
-    let isLinkMesh = false
-    current = child.parent
-    while (current && !isLinkMesh) {
-      if (current.isURDFLink) {
-        isLinkMesh = true
-        break
+    // For non-collision meshes, find the most immediate URDF parent (joint or link)
+    if (!isCollisionMesh && child.isMesh) {
+      let isLinkMesh = false
+      let isJointMesh = false
+      
+      // Find the most immediate URDF parent (joint or link)
+      current = child.parent
+      while (current) {
+        if (current.isURDFJoint) {
+          isJointMesh = true
+          break  // Joint is the immediate URDF parent
+        } else if (current.isURDFLink) {
+          isLinkMesh = true
+          break  // Link is the immediate URDF parent
+        }
+        current = current.parent
       }
-      current = current.parent
+      
+      child.userData.isLinkMesh = isLinkMesh
+      child.userData.isJointMesh = isJointMesh
+    } else {
+      // Not a mesh or is a collision mesh - don't classify as link/joint
+      child.userData.isLinkMesh = false
+      child.userData.isJointMesh = false
     }
-    child.userData.isLinkMesh = isLinkMesh
-    
-    // Check if this mesh belongs to a joint
-    let isJointMesh = false
-    current = child.parent
-    while (current && !isJointMesh) {
-      if (current.isURDFJoint) {
-        isJointMesh = true
-        break
-      }
-      current = current.parent
-    }
-    child.userData.isJointMesh = isJointMesh
     
     // Check if this is a sensor
     const isSensorObject = child.userData?.isSensor || 
