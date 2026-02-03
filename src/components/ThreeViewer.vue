@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, onBeforeUnmount, watch } from 'vue'
+import { ref, onMounted, onBeforeUnmount, watch, reactive, computed } from 'vue'
 import * as THREE from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 import URDFLoader from 'urdf-loader'
@@ -17,6 +17,24 @@ const emit = defineEmits<{
 }>()
 
 const canvasContainer = ref<HTMLDivElement | null>(null)
+
+// Visibility controls state
+const visibilityControls = reactive({
+  links: true,
+  joints: true,
+  collisions: true,
+  sensors: true
+})
+
+// Computed property for show/hide all button state
+const allVisibilityState = computed(() => {
+  const visibleCount = Object.values(visibilityControls).filter(Boolean).length
+  const totalCount = Object.keys(visibilityControls).length
+  
+  if (visibleCount === 0) return 'none'
+  if (visibleCount === totalCount) return 'all'
+  return 'mixed'
+})
 
 let scene: THREE.Scene
 let camera: THREE.PerspectiveCamera
@@ -188,21 +206,8 @@ const applyCollisionMaterials = (object: any) => {
   const meshesToUpdate: any [] = []
 
   object.traverse((child: any) => {
-    if (child.isMesh) {
-      // Check if this mesh or any of its ancestors is a collider
-      let current: any = child
-      let isCollisionMesh = false
-      
-      while (current && !isCollisionMesh) {
-        if (current.isURDFCollider) {
-          isCollisionMesh = true
-        }
-        current = current.parent
-      }
-      
-      if (isCollisionMesh) {
-        meshesToUpdate.push(child)
-      }
+    if (child.isMesh && child.userData?.isCollisionMesh) {
+      meshesToUpdate.push(child)
     }
     
     // Also make colliders visible
@@ -283,6 +288,123 @@ watch(() => props.selectedNode, (newNode) => {
   highlightNode(newNode ?? null)
 })
 
+// Visibility control methods
+const setComponentVisibility = (componentType: keyof typeof visibilityControls, visible: boolean) => {
+  if (!robot) return
+  
+  visibilityControls[componentType] = visible
+  updateObjectVisibility(robot)
+}
+
+const updateObjectVisibility = (object: any) => {
+  object.traverse((child: any) => {
+    // Handle URDF Collision geometry (independent control)
+    if (child.isURDFCollider) {
+      child.visible = visibilityControls.collisions
+      
+      // Control collision meshes
+      child.traverse((collisionChild: any) => {
+        if (collisionChild.isMesh) {
+          collisionChild.visible = visibilityControls.collisions
+        }
+      })
+    }
+    // Handle meshes using cached classification
+    else if (child.isMesh) {
+      // Skip collision meshes - they are handled above
+      if (child.userData?.isCollisionMesh) {
+        return
+      }
+      
+      // Use cached classification data
+      if (child.userData?.isLinkMesh) {
+        child.visible = visibilityControls.links
+      } else if (child.userData?.isJointMesh) {
+        child.visible = visibilityControls.joints
+      }
+    }
+    
+    // Handle sensors using cached classification
+    if (child.userData?.isSensor) {
+      child.visible = visibilityControls.sensors
+      child.traverse((sensorChild: any) => {
+        if (sensorChild.isMesh) {
+          sensorChild.visible = visibilityControls.sensors
+        }
+      })
+    }
+  })
+}
+
+const toggleComponentVisibility = (componentType: keyof typeof visibilityControls) => {
+  setComponentVisibility(componentType, !visibilityControls[componentType])
+}
+
+const toggleAllVisibility = () => {
+  const state = allVisibilityState.value
+  const shouldShowAll = state === 'none' || state === 'mixed'
+  
+  Object.keys(visibilityControls).forEach(key => {
+    visibilityControls[key as keyof typeof visibilityControls] = shouldShowAll
+  })
+  
+  if (robot) {
+    updateObjectVisibility(robot)
+  }
+}
+
+// Classify all URDF objects once and cache results in userData
+const classifyURDFObjects = (robot: any) => {
+  robot.traverse((child: any) => {
+    // Initialize userData if not exists
+    child.userData = child.userData || {}
+    
+    // Check if this object is a collision mesh by checking if it or any ancestor is a collider
+    let isCollisionMesh = false
+    let current = child
+    while (current && !isCollisionMesh) {
+      if (current.isURDFCollider) {
+        isCollisionMesh = true
+      }
+      current = current.parent
+    }
+    child.userData.isCollisionMesh = isCollisionMesh
+    
+    // Check if this mesh belongs to a link
+    let isLinkMesh = false
+    current = child.parent
+    while (current && !isLinkMesh) {
+      if (current.isURDFLink) {
+        isLinkMesh = true
+        break
+      }
+      current = current.parent
+    }
+    child.userData.isLinkMesh = isLinkMesh
+    
+    // Check if this mesh belongs to a joint
+    let isJointMesh = false
+    current = child.parent
+    while (current && !isJointMesh) {
+      if (current.isURDFJoint) {
+        isJointMesh = true
+        break
+      }
+      current = current.parent
+    }
+    child.userData.isJointMesh = isJointMesh
+    
+    // Check if this is a sensor
+    const isSensorObject = child.userData?.isSensor || 
+                          child.userData?.type === 'sensor' ||
+                          child.name?.toLowerCase().includes('sensor') ||
+                          child.name?.toLowerCase().includes('camera') ||
+                          child.name?.toLowerCase().includes('lidar') ||
+                          child.name?.toLowerCase().includes('imu')
+    child.userData.isSensor = isSensorObject
+  })
+}
+
 const convertURDFToNodeStructure = (urdfRobot: any): URDFNode => {
   // Recursively convert URDF loader structure to our node structure
   const convert = (obj: any): URDFNode => {
@@ -360,7 +482,9 @@ const loadURDFContent = (contentOrUrl: string, filename: string, packagePath: st
   const manager = new THREE.LoadingManager();
    manager.onLoad = () => {
     if (robot) {
+      classifyURDFObjects(robot) // Classify objects once and cache results
       applyCollisionMaterials(robot)
+      updateObjectVisibility(robot) // Apply current visibility settings
     }
   }
   const loader = new URDFLoader(manager)
@@ -386,13 +510,9 @@ const loadURDFContent = (contentOrUrl: string, filename: string, packagePath: st
   if (defaultLoadMeshCb) {
     // Override with a wrapper that logs but calls the default implementation
     loader.loadMeshCb = (path: string, manager: any, onComplete: (mesh: any) => void) => {
-      console.log(`[Mesh Loader] Attempting to load mesh: ${path}`)
-      
       // Call the default loader with wrapped callbacks to add logging
       defaultLoadMeshCb.call(loader, path, manager, (mesh: any) => {
-        if (mesh) {
-          console.log(`[Mesh Loader] Successfully loaded mesh: ${path}`)
-        } else {
+        if (!mesh) {
           console.warn(`[Mesh Loader] Failed to load mesh: ${path}`)
         }
         onComplete(mesh)
@@ -436,7 +556,9 @@ const loadURDFContent = (contentOrUrl: string, filename: string, packagePath: st
     scene.add(robot)
     
     // For parsed content, apply collision materials immediately since no async mesh loading
+    classifyURDFObjects(robot) // Classify objects once and cache results
     applyCollisionMaterials(robot)
+    updateObjectVisibility(robot) // Apply current visibility settings
 
     // Convert to node structure for hierarchy display
     const robotNode = convertURDFToNodeStructure(robot)
@@ -484,7 +606,76 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div ref="canvasContainer" class="three-viewer"></div>
+  <div class="three-viewer">
+    <!-- Visibility Controls -->
+    <div class="visibility-controls">
+      <!-- Show/Hide All Button -->
+      <button 
+        class="visibility-btn"
+        :class="{ 
+          'all-visible': allVisibilityState === 'all',
+          'all-hidden': allVisibilityState === 'none',
+          'mixed-state': allVisibilityState === 'mixed'
+        }"
+        @click="toggleAllVisibility"
+        title="Show/Hide All Components"
+      >
+        <span v-if="allVisibilityState === 'all'">👁️ All</span>
+        <span v-else-if="allVisibilityState === 'none'">👁️‍🗨️ All</span>
+        <span v-else>👁️ Mixed</span>
+      </button>
+
+      <div class="divider"></div>
+
+      <!-- Individual Component Type Buttons -->
+      <button 
+        class="visibility-btn"
+        :class="{ active: visibilityControls.links }"
+        @click="toggleComponentVisibility('links')"
+        title="Toggle Links Visibility"
+      >
+        <span v-if="visibilityControls.links">🔗</span>
+        <span v-else>🔗‍💨</span>
+        Links
+      </button>
+
+      <button 
+        class="visibility-btn"
+        :class="{ active: visibilityControls.joints }"
+        @click="toggleComponentVisibility('joints')"
+        title="Toggle Joints Visibility"
+      >
+        <span v-if="visibilityControls.joints">🔧</span>
+        <span v-else>🔧‍💨</span>
+        Joints
+      </button>
+
+      <button 
+        class="visibility-btn"
+        :class="{ active: visibilityControls.collisions }"
+        @click="toggleComponentVisibility('collisions')"
+        title="Toggle Collision Geometry Visibility"
+      >
+        <span v-if="visibilityControls.collisions">💥</span>
+        <span v-else>💥‍💨</span>
+        Collisions
+      </button>
+
+      <button 
+        class="visibility-btn"
+        :class="{ active: visibilityControls.sensors }"
+        @click="toggleComponentVisibility('sensors')"
+        title="Toggle Sensors Visibility"
+      >
+        <span v-if="visibilityControls.sensors">📡</span>
+        <span v-else>📡‍💨</span>
+        Sensors
+      </button>
+    </div>
+
+    <!-- 3D Canvas Container -->
+    <div ref="canvasContainer" class="canvas-container"></div>
+  </div>
 </template>
 
 <style scoped>
@@ -493,5 +684,83 @@ onBeforeUnmount(() => {
   height: 100%;
   position: relative;
   background-color: #263238;
+  display: flex;
+  flex-direction: column;
+}
+
+.visibility-controls {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  z-index: 1000;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  background-color: rgba(44, 62, 80, 0.95);
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(10px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.visibility-btn {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 10px;
+  background-color: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 4px;
+  color: #ecf0f1;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+.visibility-btn:hover {
+  background-color: rgba(255, 255, 255, 0.2);
+  border-color: rgba(255, 255, 255, 0.3);
+  transform: translateY(-1px);
+}
+
+.visibility-btn.active {
+  background-color: rgba(52, 152, 219, 0.8);
+  border-color: rgba(52, 152, 219, 1);
+  color: white;
+}
+
+.visibility-btn.all-visible {
+  background-color: rgba(46, 204, 113, 0.8);
+  border-color: rgba(46, 204, 113, 1);
+  color: white;
+}
+
+.visibility-btn.all-hidden {
+  background-color: rgba(231, 76, 60, 0.8);
+  border-color: rgba(231, 76, 60, 1);
+  color: white;
+}
+
+.visibility-btn.mixed-state {
+  background-color: rgba(243, 156, 18, 0.8);
+  border-color: rgba(243, 156, 18, 1);
+  color: white;
+}
+
+.divider {
+  width: 1px;
+  height: 20px;
+  background-color: rgba(255, 255, 255, 0.2);
+  margin: 0 4px;
+}
+
+.canvas-container {
+  flex: 1;
+  width: 100%;
+  height: 100%;
+  position: relative;
 }
 </style>
