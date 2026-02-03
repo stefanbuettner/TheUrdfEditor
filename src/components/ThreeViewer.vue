@@ -184,25 +184,46 @@ const clearHighlighting = () => {
 }
 
 const applyCollisionMaterials = (object: any) => {
-  // Apply yellow semi-transparent material to all collision geometry
+  // Collect all meshes that need material changes first
+  const meshesToUpdate: any [] = []
+
   object.traverse((child: any) => {
-    if (child.isURDFCollider) {
-      // Make the collider and all its children visible
-      child.visible = true
+    if (child.isMesh) {
+      // Check if this mesh or any of its ancestors is a collider
+      let current: any = child
+      let isCollisionMesh = false
       
-      // Traverse the collider to find all meshes and apply material
-      child.traverse((mesh: any) => {
-        if (mesh.isMesh) {
-          // Dispose of old material if it exists and is not shared
-          if (mesh.material && mesh.material !== collisionMaterial && mesh.material.dispose) {
-            mesh.material.dispose()
-          }
-          // Reuse the shared collision material for efficiency
-          mesh.material = collisionMaterial
-          mesh.visible = true
+      while (current && !isCollisionMesh) {
+        if (current.isURDFCollider) {
+          isCollisionMesh = true
         }
-      })
+        current = current.parent
+      }
+      
+      if (isCollisionMesh) {
+        meshesToUpdate.push(child)
+      }
     }
+    
+    // Also make colliders visible
+    if (child.isURDFCollider) {
+      child.visible = true
+      // If the collider itself is a mesh, also mark it for material update
+      if (child.isMesh) {
+        meshesToUpdate.push(child)
+      }
+    }
+  })
+  
+  // Apply material changes outside of traverse
+  meshesToUpdate.forEach((mesh, index) => {    
+    // Dispose of old material if it exists and is not shared or original
+    if (mesh.material && mesh.material !== collisionMaterial && mesh.material !== mesh.userData.originalMaterial && mesh.material.dispose) {
+      mesh.material.dispose()
+    }
+    
+    mesh.material = collisionMaterial
+    mesh.visible = true
   })
 }
 
@@ -336,7 +357,13 @@ const loadURDFContent = (contentOrUrl: string, filename: string, packagePath: st
   }
 
   // Use urdf-loader to load and visualize the URDF
-  const loader = new URDFLoader()
+  const manager = new THREE.LoadingManager();
+   manager.onLoad = () => {
+    if (robot) {
+      applyCollisionMaterials(robot)
+    }
+  }
+  const loader = new URDFLoader(manager)
   
   // Enable collision geometry parsing
   loader.parseCollision = true
@@ -386,8 +413,8 @@ const loadURDFContent = (contentOrUrl: string, filename: string, packagePath: st
         robot = loadedRobot
         scene.add(robot)
         
-        // Apply collision materials
-        applyCollisionMaterials(robot)
+        // Don't apply collision materials here - wait for all meshes to load
+        // The LoadingManager callback will handle this
         
         // Convert to node structure for hierarchy display
         const robotNode = convertURDFToNodeStructure(robot)
@@ -408,7 +435,7 @@ const loadURDFContent = (contentOrUrl: string, filename: string, packagePath: st
     // Add robot to scene
     scene.add(robot)
     
-    // Apply collision materials
+    // For parsed content, apply collision materials immediately since no async mesh loading
     applyCollisionMaterials(robot)
 
     // Convert to node structure for hierarchy display
