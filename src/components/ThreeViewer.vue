@@ -644,7 +644,7 @@ onBeforeUnmount(() => {
     <div class="visibility-controls">
       <!-- Show/Hide All Button -->
       <button 
-        class="visibility-btn"
+        class="visibility-btn all-btn"
         :class="{ 
           'all-visible': allVisibilityState === 'all',
           'all-hidden': allVisibilityState === 'none',
@@ -654,7 +654,7 @@ onBeforeUnmount(() => {
         title="Show/Hide All Components"
       >
         <span v-if="allVisibilityState === 'all'">👁️ All</span>
-        <span v-else-if="allVisibilityState === 'none'">👁️‍🗨️ All</span>
+        <span v-else-if="allVisibilityState === 'none'">👁️ None</span>
         <span v-else>👁️ Mixed</span>
       </button>
 
@@ -667,9 +667,8 @@ onBeforeUnmount(() => {
         @click="toggleComponentVisibility('links')"
         title="Toggle Links Visibility"
       >
-        <span v-if="visibilityControls.links">🔗</span>
-        <span v-else>🔗‍💨</span>
-        Links
+        <span class="icon">🔗</span>
+        <span :class="{ 'strikethrough': !visibilityControls.links }">Links</span>
       </button>
 
       <button 
@@ -678,9 +677,8 @@ onBeforeUnmount(() => {
         @click="toggleComponentVisibility('joints')"
         title="Toggle Joints Visibility"
       >
-        <span v-if="visibilityControls.joints">🔧</span>
-        <span v-else>🔧‍💨</span>
-        Joints
+        <span class="icon">🔧</span>
+        <span :class="{ 'strikethrough': !visibilityControls.joints }">Joints</span>
       </button>
 
       <button 
@@ -689,9 +687,8 @@ onBeforeUnmount(() => {
         @click="toggleComponentVisibility('collisions')"
         title="Toggle Collision Geometry Visibility"
       >
-        <span v-if="visibilityControls.collisions">💥</span>
-        <span v-else>💥‍💨</span>
-        Collisions
+        <span class="icon">💥</span>
+        <span :class="{ 'strikethrough': !visibilityControls.collisions }">Collisions</span>
       </button>
 
       <button 
@@ -700,9 +697,8 @@ onBeforeUnmount(() => {
         @click="toggleComponentVisibility('sensors')"
         title="Toggle Sensors Visibility"
       >
-        <span v-if="visibilityControls.sensors">📡</span>
-        <span v-else>📡‍💨</span>
-        Sensors
+        <span class="icon">📡</span>
+        <span :class="{ 'strikethrough': !visibilityControls.sensors }">Sensors</span>
       </button>
     </div>
 
@@ -788,6 +784,20 @@ onBeforeUnmount(() => {
   height: 20px;
   background-color: rgba(255, 255, 255, 0.2);
   margin: 0 4px;
+}
+
+.icon {
+  margin-right: 4px;
+}
+
+.strikethrough {
+  text-decoration: line-through;
+  opacity: 0.6;
+}
+
+.all-btn {
+  min-width: 80px;
+  justify-content: center;
 }
 
 .canvas-container {
