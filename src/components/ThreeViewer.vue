@@ -290,10 +290,12 @@ watch(() => props.selectedNode, (newNode) => {
 
 // Visibility control methods
 const setComponentVisibility = (componentType: keyof typeof visibilityControls, visible: boolean) => {
-  if (!robot) return
-  
   visibilityControls[componentType] = visible
-  updateObjectVisibility(robot)
+  
+  // Only apply to robot if one is loaded
+  if (robot) {
+    updateObjectVisibility(robot)
+  }
 }
 
 const updateObjectVisibility = (object: any) => {
