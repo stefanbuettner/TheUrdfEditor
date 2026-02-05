@@ -58,6 +58,9 @@ const collisionMaterial = new THREE.MeshBasicMaterial({
   depthWrite: false  // Ensure transparency works correctly
 })
 
+// Sensor type keywords for detection in object names
+const SENSOR_TYPE_KEYWORDS = ['sensor', 'camera', 'lidar', 'imu']
+
 const initThreeJS = () => {
   if (!canvasContainer.value) return
 
@@ -430,10 +433,9 @@ const classifyURDFObjects = (robot: any) => {
     // Check if this is a sensor
     const isSensorObject = child.userData?.isSensor || 
                           child.userData?.type === 'sensor' ||
-                          child.name?.toLowerCase().includes('sensor') ||
-                          child.name?.toLowerCase().includes('camera') ||
-                          child.name?.toLowerCase().includes('lidar') ||
-                          child.name?.toLowerCase().includes('imu')
+                          SENSOR_TYPE_KEYWORDS.some(keyword => 
+                            child.name?.toLowerCase().includes(keyword)
+                          )
     child.userData.isSensor = isSensorObject
   })
 }
