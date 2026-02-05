@@ -32,6 +32,14 @@ let mouseDownPos: { x: number; y: number } | null = null
 // Threshold for distinguishing clicks from drags (in pixels)
 const DRAG_THRESHOLD_PIXELS = 5
 
+// Reusable collision material to avoid creating new materials on each load
+const collisionMaterial = new THREE.MeshBasicMaterial({
+  color: 0xffbe38,  // Yellow/orange color
+  transparent: true,
+  opacity: 0.35,
+  depthWrite: false  // Ensure transparency works correctly
+})
+
 const initThreeJS = () => {
   if (!canvasContainer.value) return
 
@@ -175,6 +183,50 @@ const clearHighlighting = () => {
   outlineObjects = []
 }
 
+const applyCollisionMaterials = (object: any) => {
+  // Collect all meshes that need material changes first
+  const meshesToUpdate: any [] = []
+
+  object.traverse((child: any) => {
+    if (child.isMesh) {
+      // Check if this mesh or any of its ancestors is a collider
+      let current: any = child
+      let isCollisionMesh = false
+      
+      while (current && !isCollisionMesh) {
+        if (current.isURDFCollider) {
+          isCollisionMesh = true
+        }
+        current = current.parent
+      }
+      
+      if (isCollisionMesh) {
+        meshesToUpdate.push(child)
+      }
+    }
+    
+    // Also make colliders visible
+    if (child.isURDFCollider) {
+      child.visible = true
+      // If the collider itself is a mesh, also mark it for material update
+      if (child.isMesh) {
+        meshesToUpdate.push(child)
+      }
+    }
+  })
+  
+  // Apply material changes outside of traverse
+  meshesToUpdate.forEach((mesh, index) => {    
+    // Dispose of old material if it exists and is not shared or original
+    if (mesh.material && mesh.material !== collisionMaterial && mesh.material !== mesh.userData.originalMaterial && mesh.material.dispose) {
+      mesh.material.dispose()
+    }
+    
+    mesh.material = collisionMaterial
+    mesh.visible = true
+  })
+}
+
 const highlightNode = (node: URDFNode | null) => {
   clearHighlighting()
 
@@ -254,6 +306,26 @@ const convertURDFToNodeStructure = (urdfRobot: any): URDFNode => {
       }
     }
 
+    // Add collision geometry information for links
+    if (obj.isURDFLink || obj.isURDFRobot) {
+      // Find collision geometry - only direct children, not descendants
+      const collisionGeometry: any[] = []
+      if (obj.children) {
+        obj.children.forEach((child: any) => {
+          if (child.isURDFCollider) {
+            collisionGeometry.push({
+              name: child.urdfName || child.name || 'unnamed_collision',
+              visible: child.visible
+            })
+          }
+        })
+      }
+      
+      if (collisionGeometry.length > 0) {
+        node.properties!.collisionGeometry = collisionGeometry
+      }
+    }
+
     // Add link/visual properties
     if (obj.position) {
       node.properties!.position = [obj.position.x, obj.position.y, obj.position.z]
@@ -285,7 +357,16 @@ const loadURDFContent = (contentOrUrl: string, filename: string, packagePath: st
   }
 
   // Use urdf-loader to load and visualize the URDF
-  const loader = new URDFLoader()
+  const manager = new THREE.LoadingManager();
+   manager.onLoad = () => {
+    if (robot) {
+      applyCollisionMaterials(robot)
+    }
+  }
+  const loader = new URDFLoader(manager)
+  
+  // Enable collision geometry parsing
+  loader.parseCollision = true
   
   // Configure package path for resolving package:// URLs
   if (packagePath) {
@@ -332,6 +413,9 @@ const loadURDFContent = (contentOrUrl: string, filename: string, packagePath: st
         robot = loadedRobot
         scene.add(robot)
         
+        // Don't apply collision materials here - wait for all meshes to load
+        // The LoadingManager callback will handle this
+        
         // Convert to node structure for hierarchy display
         const robotNode = convertURDFToNodeStructure(robot)
         
@@ -350,6 +434,9 @@ const loadURDFContent = (contentOrUrl: string, filename: string, packagePath: st
     
     // Add robot to scene
     scene.add(robot)
+    
+    // For parsed content, apply collision materials immediately since no async mesh loading
+    applyCollisionMaterials(robot)
 
     // Convert to node structure for hierarchy display
     const robotNode = convertURDFToNodeStructure(robot)
