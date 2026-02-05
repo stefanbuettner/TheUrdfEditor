@@ -4,6 +4,8 @@ A web-based editor for URDF (Unified Robot Description Format) files, built with
 
 https://stefanbuettner.github.io/TheUrdfEditor/
 
+![TheUrdfEditor](./TheUrdfEditor.png)
+
 ## Features
 
 - 🎨 **3D Visualization**: Interactive 3D view of robot models using Three.js
