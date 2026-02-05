@@ -786,10 +786,6 @@ onBeforeUnmount(() => {
   margin: 0 4px;
 }
 
-.icon {
-  margin-right: 4px;
-}
-
 .strikethrough {
   text-decoration: line-through;
   opacity: 0.6;
